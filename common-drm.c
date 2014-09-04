@@ -149,7 +149,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width)
 	};
 
 	for (unsigned y = 0; y < buf->height; ++y) {
-		unsigned int bcol = colors32[y / (buf->height / (sizeof(colors32) / 4))];
+		unsigned int bcol = colors32[y * sizeof(colors32) / 4 / buf->height];
 		uint32_t *line = (uint32_t*)(buf->map + buf->stride * y);
 
 		memset(line, 0, buf->width * 4);
