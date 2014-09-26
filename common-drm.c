@@ -218,7 +218,8 @@ int drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 	drmModePropertyRes *propRes;
 	int j;
 	int r;
-	printf("set dpms %d\n", dpms);
+
+	printf("set dpms %u: %d\n", conn_id, dpms);
 
 	props = drmModeObjectGetProperties(fd, conn_id, DRM_MODE_OBJECT_CONNECTOR);
 	for (j = 0; j < props->count_props; j++) {
@@ -234,7 +235,7 @@ int drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 	}
 
 	if (prop == 0) {
-		printf("missing rotation property\n");
+		printf("no DPMS property\n");
 		return -ENODEV;
 	}
 

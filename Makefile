@@ -1,4 +1,4 @@
-PROGS=db
+PROGS=db onoff
 
 PKG_CONFIG=pkg-config
 
