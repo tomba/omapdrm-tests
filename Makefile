@@ -1,4 +1,4 @@
-PROGS=db onoff
+PROGS=db onoff modesetter
 
 PKG_CONFIG=pkg-config
 
