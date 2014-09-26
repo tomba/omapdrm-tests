@@ -20,6 +20,7 @@ struct framebuffer {
 int drm_open_dev_dumb(const char *node, int *out);
 int drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuffer *buf);
 void drm_destroy_dumb_fb(struct framebuffer *buf);
+void drm_draw_test_pattern(struct framebuffer *buf);
 void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width);
 int drm_set_dpms(int fd, uint32_t conn_id, int dpms);
 
