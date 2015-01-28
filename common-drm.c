@@ -1,16 +1,4 @@
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <xf86drm.h>
-#include <xf86drmMode.h>
-
-#include "common.h"
+#include "common-drm.h"
 
 int drm_open_dev_dumb(const char *node, int *out)
 {
@@ -36,7 +24,7 @@ int drm_open_dev_dumb(const char *node, int *out)
 	return 0;
 }
 
-static void drm_destroy_dumb(int fd, uint32_t handle)
+void drm_destroy_dumb(int fd, uint32_t handle)
 {
 	struct drm_mode_destroy_dumb dreq = {
 		.handle = handle,
@@ -130,7 +118,7 @@ void drm_destroy_dumb_fb(struct framebuffer *buf)
 	memset(buf, 0, sizeof(*buf));
 }
 
-static void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
+void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
 {
 	uint32_t *p;
 	p = (uint32_t*)(buf->map + buf->stride * y + x * 4);
