@@ -14,10 +14,9 @@ CFLAGS += -O2 -Wall -std=c99 -D_GNU_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE
 
 all: $(PROGS)
 
-$(PROGS): common.o common-drm.o
+$(PROGS): common.o common-drm.o common-modeset.o
 
-common.o: common.h
-common-drm.o: common.h
+common%.o: common%.h
 
 .PHONY: strip clean
 
