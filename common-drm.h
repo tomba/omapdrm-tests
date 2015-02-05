@@ -15,7 +15,7 @@
 
 #include "common.h"
 
-struct framebuffer{
+struct framebuffer {
 	int fd;
 	uint32_t width;
 	uint32_t height;

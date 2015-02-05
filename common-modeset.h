@@ -3,7 +3,7 @@
 
 #include "common-drm.h"
 
-struct modeset_dev{
+struct modeset_dev {
 	struct modeset_dev *next;
 
 	unsigned int front_buf;
