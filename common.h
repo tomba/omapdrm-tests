@@ -5,10 +5,13 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define likely(x)	__builtin_expect(!!(x), 1)
+#define unlikely(x)	__builtin_expect(!!(x), 0)
+
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-#define ASSERT(x) if (unlikely(!(x)) \
+#define ASSERT(x) if (unlikely(!(x))) \
 	{ perror("assert(" __FILE__ ":" TOSTRING(__LINE__) "): "); exit(1); }
 
 /* common.c */
