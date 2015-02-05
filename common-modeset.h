@@ -25,6 +25,7 @@ struct modeset_dev {
 	void *data;
 
 	int pflip_pending;
+	void (*flip_event)(void *);
 
 	int dpms;
 
@@ -33,11 +34,9 @@ struct modeset_dev {
 void modeset_prepare(int fd, struct modeset_dev **dev_list);
 void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers);
 void modeset_set_modes(struct modeset_dev *list);
-void modeset_draw(int fd, drmEventContext *ev,
-			     struct modeset_dev *dev_list);
-void modeset_cleanup(int fd, drmEventContext *ev,
-			     struct modeset_dev *dev_list);
-void flip(int fd, struct modeset_dev *dev);
+void modeset_start_flip(struct modeset_dev *dev);
+void modeset_main_loop(struct modeset_dev *modeset_list, void (*flip_event)(void *));
+void modeset_cleanup(struct modeset_dev *dev_list);
 
 #endif
 

@@ -16,69 +16,62 @@ struct flip_data {
 	uint64_t min_flip_time, max_flip_time;
 };
 
-void modeset_page_flip_event(int fd, unsigned int frame,
-				    unsigned int sec, unsigned int usec,
-				    void *data)
+static void page_flip_event(void *data)
 {
 	struct modeset_dev *dev = data;
 	struct timespec now;
-	struct flip_data *flip_d = dev->data;
-
-	dev->pflip_pending = false;
-
-	if (dev->cleanup)
-		return;
+	struct flip_data *priv = dev->data;
 
 	get_time_now(&now);
 
 	/* initialize values on first flip */
-	if (flip_d->num_frames_drawn == 0) {
-		flip_d->min_flip_time = UINT64_MAX;
-		flip_d->max_flip_time = 0;
-		flip_d->draw_start_time = now;
-		flip_d->flip_time = now;
-		flip_d->draw_total_time = 0;
+	if (priv->num_frames_drawn == 0) {
+		priv->min_flip_time = UINT64_MAX;
+		priv->max_flip_time = 0;
+		priv->draw_start_time = now;
+		priv->flip_time = now;
+		priv->draw_total_time = 0;
 	}
 
 	/* measure min/max flip time */
-	if (flip_d->num_frames_drawn > 0) {
+	if (priv->num_frames_drawn > 0) {
 		uint64_t us;
 
-		us = get_time_elapsed_us(&flip_d->flip_time, &now);
+		us = get_time_elapsed_us(&priv->flip_time, &now);
 
-		flip_d->flip_time = now;
+		priv->flip_time = now;
 
-		if (us < flip_d->min_flip_time)
-			flip_d->min_flip_time = us;
+		if (us < priv->min_flip_time)
+			priv->min_flip_time = us;
 
-		if (us > flip_d->max_flip_time)
-			flip_d->max_flip_time = us;
+		if (us > priv->max_flip_time)
+			priv->max_flip_time = us;
 	}
 
 	const int measure_interval = 100;
 
-	if (flip_d->num_frames_drawn > 0 &&
-		flip_d->num_frames_drawn % measure_interval == 0) {
+	if (priv->num_frames_drawn > 0 &&
+		priv->num_frames_drawn % measure_interval == 0) {
 		uint64_t us;
 		float flip_avg, draw_avg;
 
-		us = get_time_elapsed_us(&flip_d->draw_start_time, &now);
+		us = get_time_elapsed_us(&priv->draw_start_time, &now);
 		flip_avg = (float)us / measure_interval / 1000;
 
-		draw_avg = (float)flip_d->draw_total_time / measure_interval / 1000;
+		draw_avg = (float)priv->draw_total_time / measure_interval / 1000;
 
 		printf("Output %u: draw %f ms, flip avg/min/max %f/%f/%f\n",
 			dev->output_id,
 			draw_avg,
 			flip_avg,
-			flip_d->min_flip_time / 1000.0,
-			flip_d->max_flip_time / 1000.0);
+			priv->min_flip_time / 1000.0,
+			priv->max_flip_time / 1000.0);
 
-		flip_d->draw_start_time = now;
-		flip_d->draw_total_time = 0;
+		priv->draw_start_time = now;
+		priv->draw_total_time = 0;
 
-		flip_d->min_flip_time = UINT64_MAX;
-		flip_d->max_flip_time = 0;
+		priv->min_flip_time = UINT64_MAX;
+		priv->max_flip_time = 0;
 	}
 
 	/* draw */
@@ -90,18 +83,18 @@ void modeset_page_flip_event(int fd, unsigned int frame,
 
 		get_time_now(&ts1);
 
-		flip_d->bar_xpos = (flip_d->bar_xpos + 8) % (buf->width - bar_width);
+		priv->bar_xpos = (priv->bar_xpos + 8) % (buf->width - bar_width);
 
-		drm_draw_color_bar(buf, flip_d->bar_xpos, bar_width);
+		drm_draw_color_bar(buf, priv->bar_xpos, bar_width);
 
 		get_time_now(&ts2);
 
-		flip_d->draw_total_time += get_time_elapsed_us(&ts1, &ts2);
+		priv->draw_total_time += get_time_elapsed_us(&ts1, &ts2);
 	}
 
-	flip_d->num_frames_drawn += 1;
+	priv->num_frames_drawn += 1;
 
-	flip(fd, dev);
+	modeset_start_flip(dev);
 }
 
 int main(int argc, char **argv)
@@ -109,10 +102,6 @@ int main(int argc, char **argv)
 	int fd;
 	int opt;
 	const char *card = "/dev/dri/card0";
-	drmEventContext ev = {
-		.version = DRM_EVENT_CONTEXT_VERSION,
-		.page_flip_handler = modeset_page_flip_event,
-	};
 
 	while ((opt = getopt(argc, argv, "c:")) != -1) {
 		switch (opt) {
@@ -139,14 +128,14 @@ int main(int argc, char **argv)
 	modeset_set_modes(modeset_list);
 
 	// Draw color bar
-	modeset_draw(fd, &ev, modeset_list);
+	modeset_main_loop(modeset_list, &page_flip_event);
 
 	// Free private data
 	for_each_dev(dev, modeset_list)
 		free(dev->data);
 
 	// Free modeset data
-	modeset_cleanup(fd, &ev, modeset_list);
+	modeset_cleanup(modeset_list);
 
 	close(fd);
 
@@ -154,4 +143,3 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-

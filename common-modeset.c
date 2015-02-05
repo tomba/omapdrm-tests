@@ -200,12 +200,50 @@ void modeset_set_modes(struct modeset_dev *list)
 	}
 }
 
-void modeset_draw(int fd, drmEventContext *ev,
-            struct modeset_dev *dev_list)
+void modeset_start_flip(struct modeset_dev *dev)
 {
+	struct framebuffer *buf;
+	int r;
+
+	/* back buffer */
+	buf = &dev->bufs[(dev->front_buf + 1) % dev->num_buffers];
+
+	r = drmModePageFlip(dev->fd, dev->crtc_id, buf->fb_id, DRM_MODE_PAGE_FLIP_EVENT, dev);
+	ASSERT(r == 0);
+
+	dev->front_buf = (dev->front_buf + 1) % dev->num_buffers;
+	dev->pflip_pending = true;
+}
+
+static void modeset_page_flip_event(int fd, unsigned int frame,
+				    unsigned int sec, unsigned int usec,
+				    void *data)
+{
+	struct modeset_dev *dev = data;
+
+	dev->pflip_pending = false;
+
+	if (dev->cleanup)
+		return;
+
+	if (dev->flip_event)
+		dev->flip_event(data);
+}
+
+void modeset_main_loop(struct modeset_dev *modeset_list, void (*flip_event)(void *))
+{
+	drmEventContext ev = {
+		.version = DRM_EVENT_CONTEXT_VERSION,
+		.page_flip_handler = modeset_page_flip_event,
+	};
+
 	/* start the page flips */
-	for_each_dev(dev, dev_list)
-		flip(fd, dev);
+	for_each_dev(dev, modeset_list) {
+		dev->flip_event = flip_event;
+		modeset_start_flip(dev);
+	}
+
+	int fd = modeset_list->fd;
 
 	fd_set fds;
 
@@ -225,16 +263,32 @@ void modeset_draw(int fd, drmEventContext *ev,
 			fprintf(stderr, "exit due to user-input\n");
 			break;
 		} else if (FD_ISSET(fd, &fds)) {
-			drmHandleEvent(fd, ev);
+			drmHandleEvent(fd, &ev);
+		}
+	}
+
+	for_each_dev(dev, modeset_list) {
+		dev->cleanup = true;
+
+		if (!dev->pflip_pending)
+			continue;
+
+		/* if a pageflip is pending, wait for it to complete */
+		fprintf(stderr,
+			"wait for pending page-flip to complete for output %d...\n",
+			dev->output_id);
+
+		while (dev->pflip_pending) {
+			int r;
+			r = drmHandleEvent(fd, &ev);
+			ASSERT(r == 0);
 		}
 	}
 }
 
-void modeset_cleanup(int fd, drmEventContext *ev,
-            struct modeset_dev *dev_list)
+void modeset_cleanup(struct modeset_dev *dev_list)
 {
 	struct modeset_dev *iter;
-	int r;
 	unsigned int i;
 
 	while (dev_list) {
@@ -242,18 +296,9 @@ void modeset_cleanup(int fd, drmEventContext *ev,
 		iter = dev_list;
 		dev_list = iter->next;
 
-		/* if a pageflip is pending, wait for it to complete */
-		iter->cleanup = true;
-		fprintf(stderr, "wait for pending page-flip to complete...\n");
-		while (iter->pflip_pending) {
-			r = drmHandleEvent(fd, ev);
-			if (r)
-				break;
-		}
-
 		/* restore saved CRTC configuration */
 		if (!iter->pflip_pending)
-			drmModeSetCrtc(fd,
+			drmModeSetCrtc(iter->fd,
 				       iter->saved_crtc->crtc_id,
 				       iter->saved_crtc->buffer_id,
 				       iter->saved_crtc->x,
@@ -272,19 +317,4 @@ void modeset_cleanup(int fd, drmEventContext *ev,
 		free(iter->bufs);
 		free(iter);
 	}
-}
-
-void flip(int fd, struct modeset_dev *dev)
-{
-	struct framebuffer *buf;
-	int r;
-
-	/* back buffer */
-	buf = &dev->bufs[(dev->front_buf + 1) % dev->num_buffers];
-
-	r = drmModePageFlip(fd, dev->crtc_id, buf->fb_id, DRM_MODE_PAGE_FLIP_EVENT, dev);
-	ASSERT(r == 0);
-
-	dev->front_buf = (dev->front_buf + 1) % dev->num_buffers;
-	dev->pflip_pending = true;
 }
