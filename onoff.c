@@ -1,5 +1,5 @@
 
-#include "common-modeset.h"
+#include "test.h"
 
 const int bar_width = 40;
 

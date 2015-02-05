@@ -1,7 +1,3 @@
-#include <stdint.h>
-#include <time.h>
-#include <sys/time.h>
-
 #include "common.h"
 
 static struct timespec timespec_diff(const struct timespec *start,

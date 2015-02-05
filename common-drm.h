@@ -13,8 +13,6 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-#include "common.h"
-
 struct framebuffer {
 	int fd;
 	uint32_t width;
