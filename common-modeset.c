@@ -1,4 +1,5 @@
 #include "common-modeset.h"
+#include "common.h"
 
 int modeset_prepare(int fd, int num_buffers,
            struct modeset_dev **dev_list)
@@ -13,21 +14,13 @@ int modeset_prepare(int fd, int num_buffers,
 
 	/* retrieve resources */
 	res = drmModeGetResources(fd);
-	if (!res) {
-		fprintf(stderr, "cannot retrieve DRM resources (%d): %m\n",
-			errno);
-		return -errno;
-	}
+	ASSERT(res);
 
 	/* iterate all connectors */
 	for (i = 0; i < res->count_connectors; ++i) {
 		/* get information for each connector */
 		conn = drmModeGetConnector(fd, res->connectors[i]);
-		if (!conn) {
-			fprintf(stderr, "cannot retrieve DRM connector %u:%u (%d): %m\n",
-				i, res->connectors[i], errno);
-			continue;
-		}
+		ASSERT(conn);
 
 		/* create a device structure */
 		dev = malloc(sizeof(*dev));
@@ -68,7 +61,7 @@ int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
 {
 	int r;
 	uint32_t width, height;
-	unsigned int i, j;
+	unsigned int i;
 
 	/* check if a monitor is connected */
 	if (conn->connection != DRM_MODE_CONNECTED) {
@@ -100,22 +93,10 @@ int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
 
 	/* create framebuffers for this CRTC */
 	dev->bufs = malloc(dev->num_buffers*sizeof(*dev->bufs));
-	if(!dev->bufs) {
-		fprintf(stderr, "Unable to allocate framebuffer memory for connector %u\n",
-		conn->connector_id);
-		return -ENOMEM;
-	}
+	ASSERT(dev->bufs);
 
-	for(i = 0 ; i < dev->num_buffers; i++) {
-		r = drm_create_dumb_fb(fd, width, height, &dev->bufs[i]);
-		if (r) {
-			fprintf(stderr, "cannot create framebuffer for connector %u\n",
-				conn->connector_id);
-			for(j = 0; j < i; j++) drm_destroy_dumb_fb(&dev->bufs[j]);
-			free(dev->bufs);
-			return r;
-		}
-	}
+	for(i = 0 ; i < dev->num_buffers; i++)
+		drm_create_dumb_fb(fd, width, height, &dev->bufs[i]);
 
 	return 0;
 }
@@ -161,11 +142,7 @@ int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
 	 * matching CRTC. */
 	for (i = 0; i < conn->count_encoders; ++i) {
 		enc = drmModeGetEncoder(fd, conn->encoders[i]);
-		if (!enc) {
-			fprintf(stderr, "cannot retrieve encoder %u:%u (%d): %m\n",
-				i, conn->encoders[i], errno);
-			continue;
-		}
+		ASSERT(enc);
 
 		/* iterate all global CRTCs */
 		for (j = 0; j < res->count_crtcs; ++j) {
@@ -283,11 +260,7 @@ void flip(int fd, struct modeset_dev *dev)
 	buf = &dev->bufs[(dev->front_buf + 1) % dev->num_buffers];
 
 	r = drmModePageFlip(fd, dev->crtc_id, buf->fb_id, DRM_MODE_PAGE_FLIP_EVENT, dev);
-	if (r) {
-		fprintf(stderr, "cannot flip CRTC for connector %u (%d): %m\n",
-			dev->conn_id, errno);
-		return;
-	}
+	ASSERT(r == 0);
 
 	dev->front_buf = (dev->front_buf + 1) % dev->num_buffers;
 	dev->pflip_pending = true;

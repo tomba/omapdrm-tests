@@ -1,27 +1,16 @@
 #include "common-drm.h"
+#include "common.h"
 
-int drm_open_dev_dumb(const char *node, int *out)
+int drm_open_dev_dumb(const char *node)
 {
-	int fd;
-
-	fd = open(node, O_RDWR | O_CLOEXEC);
-	if (fd < 0) {
-		int r = -errno;
-		fprintf(stderr, "cannot open '%s': %m\n", node);
-		return r;
-	}
+	int fd = open(node, O_RDWR | O_CLOEXEC);
+	ASSERT(fd >= 0);
 
 	uint64_t has_dumb;
 
-	if (drmGetCap(fd, DRM_CAP_DUMB_BUFFER, &has_dumb) < 0 || !has_dumb) {
-		fprintf(stderr, "drm device '%s' does not support dumb buffers\n",
-			node);
-		close(fd);
-		return -EOPNOTSUPP;
-	}
+	ASSERT (drmGetCap(fd, DRM_CAP_DUMB_BUFFER, &has_dumb) == 0 && has_dumb);
 
-	*out = fd;
-	return 0;
+	return fd;
 }
 
 void drm_destroy_dumb(int fd, uint32_t handle)
@@ -33,7 +22,7 @@ void drm_destroy_dumb(int fd, uint32_t handle)
 	drmIoctl(fd, DRM_IOCTL_MODE_DESTROY_DUMB, &dreq);
 }
 
-int drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuffer *buf)
+void drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuffer *buf)
 {
 	int r;
 
@@ -50,11 +39,7 @@ int drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuff
 		.bpp = 32,
 	};
 	r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
-	if (r < 0) {
-		fprintf(stderr, "cannot create dumb buffer (%d): %m\n",
-			errno);
-		return -errno;
-	}
+	ASSERT(r == 0);
 	buf->stride = creq.pitch;
 	buf->size = creq.size;
 	buf->handle = creq.handle;
@@ -62,46 +47,22 @@ int drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuff
 	/* create framebuffer object for the dumb-buffer */
 	r = drmModeAddFB(fd, buf->width, buf->height, 24, 32, buf->stride,
 			   buf->handle, &buf->fb_id);
-	if (r) {
-		fprintf(stderr, "cannot create framebuffer (%d): %m\n",
-			errno);
-		r = -errno;
-		goto err_destroy;
-	}
+	ASSERT(r == 0);
 
 	/* prepare buffer for memory mapping */
 	struct drm_mode_map_dumb mreq = {
 		.handle = buf->handle,
 	};
 	r = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq);
-	if (r) {
-		fprintf(stderr, "cannot map dumb buffer (%d): %m\n",
-			errno);
-		r = -errno;
-		goto err_fb;
-	}
+	ASSERT(r == 0);
 
 	/* perform actual memory mapping */
 	buf->map = mmap(0, buf->size, PROT_READ | PROT_WRITE, MAP_SHARED,
 		        fd, mreq.offset);
-	if (buf->map == MAP_FAILED) {
-		fprintf(stderr, "cannot mmap dumb buffer (%d): %m\n",
-			errno);
-		r = -errno;
-		goto err_fb;
-	}
+	ASSERT(buf->map != MAP_FAILED);
 
 	/* clear the framebuffer to 0 */
 	memset(buf->map, 0, buf->size);
-
-	return 0;
-
-err_fb:
-	drmModeRmFB(fd, buf->fb_id);
-err_destroy:
-	drm_destroy_dumb(fd, buf->handle);
-
-	return r;
 }
 
 void drm_destroy_dumb_fb(struct framebuffer *buf)
@@ -199,7 +160,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width)
 	}
 }
 
-int drm_set_dpms(int fd, uint32_t conn_id, int dpms)
+void drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 {
 	uint32_t prop = 0;
 	drmModeObjectProperties *props;
@@ -222,17 +183,9 @@ int drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 		}
 	}
 
-	if (prop == 0) {
-		printf("no DPMS property\n");
-		return -ENODEV;
-	}
+	ASSERT(prop);
 
 	r = drmModeObjectSetProperty(fd, conn_id,
 		DRM_MODE_OBJECT_CONNECTOR, prop, dpms);
-	if (r != 0) {
-		printf("drmModeObjectSetProperty failed with %d\n", r);
-		return r;
-	}
-
-	return 0;
+	ASSERT(r == 0);
 }

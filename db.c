@@ -127,14 +127,11 @@ int main(int argc, char **argv)
 	fprintf(stderr, "Using card '%s'\n", card);
 
 	/* open the DRM device */
-	r = drm_open_dev_dumb(card, &fd);
-	if (r)
-		goto out_return;
+	fd = drm_open_dev_dumb(card);
 
 	/* prepare all connectors and CRTCs */
 	r = modeset_prepare(fd, 2, &modeset_list);
-	if (r)
-		goto out_close;
+	ASSERT(r == 0);
 
 	/* perform actual modesetting on each found connector+CRTC */
 	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
@@ -165,17 +162,10 @@ int main(int argc, char **argv)
 	}
 	modeset_cleanup(fd, &ev, modeset_list);
 
-	r = 0;
-
-out_close:
 	close(fd);
-out_return:
-	if (r) {
-		errno = -r;
-		fprintf(stderr, "modeset failed with error %d: %m\n", errno);
-	} else {
-		fprintf(stderr, "exiting\n");
-	}
+
+	fprintf(stderr, "exiting\n");
+
 	return r;
 }
 

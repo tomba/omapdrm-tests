@@ -20,7 +20,10 @@ static struct timespec timespec_diff(const struct timespec *start,
 
 void get_time_now(struct timespec *ts)
 {
-	clock_gettime(CLOCK_MONOTONIC, ts);
+	int r;
+
+	r = clock_gettime(CLOCK_MONOTONIC, ts);
+	ASSERT(r == 0);
 }
 
 uint64_t get_time_elapsed_us(const struct timespec *ts_start, const struct timespec *ts_end)
