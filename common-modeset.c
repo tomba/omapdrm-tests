@@ -163,7 +163,7 @@ void modeset_prepare(int fd, struct modeset_dev **dev_list)
 
 void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers)
 {
-	for (struct modeset_dev *dev = list; dev; dev = dev->next) {
+	for_each_dev(dev, list) {
 		struct framebuffer *bufs;
 		int i;
 
@@ -181,7 +181,7 @@ void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers)
 
 void modeset_set_modes(struct modeset_dev *list)
 {
-	for (struct modeset_dev *dev = list; dev; dev = dev->next) {
+	for_each_dev(dev, list) {
 		struct framebuffer *buf;
 		int r;
 
@@ -203,9 +203,8 @@ void modeset_set_modes(struct modeset_dev *list)
 void modeset_draw(int fd, drmEventContext *ev,
             struct modeset_dev *dev_list)
 {
-
 	/* start the page flips */
-	for (struct modeset_dev *dev = dev_list; dev; dev = dev->next)
+	for_each_dev(dev, dev_list)
 		flip(fd, dev);
 
 	fd_set fds;

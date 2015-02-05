@@ -132,9 +132,8 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 2);
 
 	// Allocate private data
-	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
+	for_each_dev(dev, modeset_list)
 		dev->data = calloc(1, sizeof(struct flip_data));
-	}
 
 	// Set modes
 	modeset_set_modes(modeset_list);
@@ -143,9 +142,8 @@ int main(int argc, char **argv)
 	modeset_draw(fd, &ev, modeset_list);
 
 	// Free private data
-	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
+	for_each_dev(dev, modeset_list)
 		free(dev->data);
-	}
 
 	// Free modeset data
 	modeset_cleanup(fd, &ev, modeset_list);

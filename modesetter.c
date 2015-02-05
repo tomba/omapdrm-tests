@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 2);
 
 	// Draw test pattern
-	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
+	for_each_dev(dev, modeset_list) {
 		struct framebuffer *buf;
 		buf = &dev->bufs[0];
 		drm_draw_test_pattern(buf);

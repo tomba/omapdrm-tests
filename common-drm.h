@@ -37,4 +37,7 @@ void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color);
 void drm_draw_test_pattern(struct framebuffer *fb_info);
 void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width);
 
+#define for_each_dev(pos, head) \
+	for (struct modeset_dev *(pos) = (head); (pos); (pos) = (pos)->next)
+
 #endif
