@@ -1,107 +1,7 @@
 #include "common-modeset.h"
 #include "common.h"
 
-int modeset_prepare(int fd, int num_buffers,
-           struct modeset_dev **dev_list)
-{
-	drmModeRes *res;
-	drmModeConnector *conn;
-	unsigned int i;
-	struct modeset_dev *dev;
-	struct modeset_dev *d_list=NULL;
-	int r;
-	uint32_t output_id = 0;
-
-	/* retrieve resources */
-	res = drmModeGetResources(fd);
-	ASSERT(res);
-
-	/* iterate all connectors */
-	for (i = 0; i < res->count_connectors; ++i) {
-		/* get information for each connector */
-		conn = drmModeGetConnector(fd, res->connectors[i]);
-		ASSERT(conn);
-
-		/* create a device structure */
-		dev = malloc(sizeof(*dev));
-		memset(dev, 0, sizeof(*dev));
-		dev->conn_id = conn->connector_id;
-		dev->output_id = output_id++;
-		dev->num_buffers = num_buffers;
-
-		/* call helper function to prepare this connector */
-		r = modeset_setup_dev(fd, res, conn, dev, d_list);
-		if (r) {
-			if (r != -ENOENT) {
-				errno = -r;
-				fprintf(stderr, "cannot setup device for connector %u:%u (%d): %m\n",
-					i, res->connectors[i], errno);
-			}
-			free(dev);
-			drmModeFreeConnector(conn);
-			continue;
-		}
-
-		/* free connector data and link device into device list */
-		drmModeFreeConnector(conn);
-		dev->next = d_list;
-		d_list = dev;
-	}
-
-	/* free resources again */
-	drmModeFreeResources(res);
-
-	*dev_list = d_list;
-
-	return 0;
-}
-
-int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
-			     struct modeset_dev *dev, struct modeset_dev *dev_list)
-{
-	int r;
-	uint32_t width, height;
-	unsigned int i;
-
-	/* check if a monitor is connected */
-	if (conn->connection != DRM_MODE_CONNECTED) {
-		fprintf(stderr, "ignoring unused connector %u\n",
-			conn->connector_id);
-		return -ENOENT;
-	}
-
-	/* check if there is at least one valid mode */
-	if (conn->count_modes == 0) {
-		fprintf(stderr, "no valid mode for connector %u\n",
-			conn->connector_id);
-		return -EFAULT;
-	}
-
-	width = conn->modes[0].hdisplay;
-	height = conn->modes[0].vdisplay;
-
-	/* copy the mode information into our device structure */
-	memcpy(&dev->mode, &conn->modes[0], sizeof(dev->mode));
-
-	/* find a crtc for this connector */
-	r = modeset_find_crtc(fd, res, conn, dev, dev_list);
-	if (r) {
-		fprintf(stderr, "no valid crtc for connector %u\n",
-			conn->connector_id);
-		return r;
-	}
-
-	/* create framebuffers for this CRTC */
-	dev->bufs = malloc(dev->num_buffers*sizeof(*dev->bufs));
-	ASSERT(dev->bufs);
-
-	for(i = 0 ; i < dev->num_buffers; i++)
-		drm_create_dumb_fb(fd, width, height, &dev->bufs[i]);
-
-	return 0;
-}
-
-int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
+static int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
 			     struct modeset_dev *dev, struct modeset_dev *dev_list)
 {
 	drmModeEncoder *enc;
@@ -174,6 +74,130 @@ int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
 	fprintf(stderr, "cannot find suitable CRTC for connector %u\n",
 		conn->connector_id);
 	return -ENOENT;
+}
+
+static int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
+			     struct modeset_dev *dev, struct modeset_dev *dev_list)
+{
+	int r;
+
+	/* check if a monitor is connected */
+	if (conn->connection != DRM_MODE_CONNECTED) {
+		fprintf(stderr, "ignoring unused connector %u\n",
+			conn->connector_id);
+		return -ENOENT;
+	}
+
+	/* check if there is at least one valid mode */
+	if (conn->count_modes == 0) {
+		fprintf(stderr, "no valid mode for connector %u\n",
+			conn->connector_id);
+		return -EFAULT;
+	}
+
+	/* copy the mode information into our device structure */
+	memcpy(&dev->mode, &conn->modes[0], sizeof(dev->mode));
+
+	/* find a crtc for this connector */
+	r = modeset_find_crtc(fd, res, conn, dev, dev_list);
+	if (r) {
+		fprintf(stderr, "no valid crtc for connector %u\n",
+			conn->connector_id);
+		return r;
+	}
+
+	return 0;
+}
+
+void modeset_prepare(int fd, struct modeset_dev **dev_list)
+{
+	drmModeRes *res;
+	drmModeConnector *conn;
+	unsigned int i;
+	struct modeset_dev *dev;
+	struct modeset_dev *d_list=NULL;
+	int r;
+	uint32_t output_id = 0;
+
+	/* retrieve resources */
+	res = drmModeGetResources(fd);
+	ASSERT(res);
+
+	/* iterate all connectors */
+	for (i = 0; i < res->count_connectors; ++i) {
+		/* get information for each connector */
+		conn = drmModeGetConnector(fd, res->connectors[i]);
+		ASSERT(conn);
+
+		/* create a device structure */
+		dev = malloc(sizeof(*dev));
+		memset(dev, 0, sizeof(*dev));
+		dev->fd = fd;
+		dev->conn_id = conn->connector_id;
+		dev->output_id = output_id++;
+
+		/* call helper function to prepare this connector */
+		r = modeset_setup_dev(fd, res, conn, dev, d_list);
+		if (r) {
+			if (r != -ENOENT) {
+				errno = -r;
+				fprintf(stderr, "cannot setup device for connector %u:%u (%d): %m\n",
+					i, res->connectors[i], errno);
+			}
+			free(dev);
+			drmModeFreeConnector(conn);
+			continue;
+		}
+
+		/* free connector data and link device into device list */
+		drmModeFreeConnector(conn);
+		dev->next = d_list;
+		d_list = dev;
+	}
+
+	/* free resources again */
+	drmModeFreeResources(res);
+
+	*dev_list = d_list;
+}
+
+void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers)
+{
+	for (struct modeset_dev *dev = list; dev; dev = dev->next) {
+		struct framebuffer *bufs;
+		int i;
+
+		bufs = malloc(num_buffers * sizeof(*bufs));
+		ASSERT(bufs);
+
+		for(i = 0 ; i < num_buffers; i++)
+			drm_create_dumb_fb(dev->fd,
+				dev->mode.hdisplay, dev->mode.vdisplay, &bufs[i]);
+
+		dev->bufs = bufs;
+		dev->num_buffers = num_buffers;
+	}
+}
+
+void modeset_set_modes(struct modeset_dev *list)
+{
+	for (struct modeset_dev *dev = list; dev; dev = dev->next) {
+		struct framebuffer *buf;
+		int r;
+
+		fprintf(stderr, "Output %u: Connector %u, Encoder %u, CRTC %u, FB %u/%u, Mode %ux%u\n",
+			dev->output_id,
+			dev->conn_id, dev->enc_id, dev->crtc_id,
+			dev->bufs[0].fb_id, dev->bufs[1].fb_id,
+			dev->mode.hdisplay, dev->mode.vdisplay);
+
+		dev->saved_crtc = drmModeGetCrtc(dev->fd, dev->crtc_id);
+		buf = &dev->bufs[0];
+
+		r = drmModeSetCrtc(dev->fd, dev->crtc_id, buf->fb_id, 0, 0,
+				     &dev->conn_id, 1, &dev->mode);
+		ASSERT(r == 0);
+	}
 }
 
 void modeset_draw(int fd, drmEventContext *ev,

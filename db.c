@@ -106,11 +106,9 @@ void modeset_page_flip_event(int fd, unsigned int frame,
 
 int main(int argc, char **argv)
 {
-	int r, fd = -1;
-	const char *card = "/dev/dri/card0";
-	struct framebuffer *buf;
+	int fd;
 	int opt;
-	struct flip_data *f_data;
+	const char *card = "/dev/dri/card0";
 	drmEventContext ev = {
 		.version = DRM_EVENT_CONTEXT_VERSION,
 		.page_flip_handler = modeset_page_flip_event,
@@ -124,48 +122,38 @@ int main(int argc, char **argv)
 		}
 	}
 
-	fprintf(stderr, "Using card '%s'\n", card);
-
-	/* open the DRM device */
+	// open the DRM device
 	fd = drm_open_dev_dumb(card);
 
-	/* prepare all connectors and CRTCs */
-	r = modeset_prepare(fd, 2, &modeset_list);
-	ASSERT(r == 0);
+	// Prepare all connectors and CRTCs
+	modeset_prepare(fd, &modeset_list);
 
-	/* perform actual modesetting on each found connector+CRTC */
+	// Allocate buffers
+	modeset_alloc_fbs(modeset_list, 2);
+
+	// Allocate private data
 	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
-		fprintf(stderr, "Output %u: Connector %u, Encoder %u, CRTC %u, FB %u/%u, Mode %ux%u\n",
-			dev->output_id,
-			dev->conn_id, dev->enc_id, dev->crtc_id,
-			dev->bufs[0].fb_id, dev->bufs[1].fb_id,
-			dev->mode.hdisplay, dev->mode.vdisplay);
-
-		dev->saved_crtc = drmModeGetCrtc(fd, dev->crtc_id);
-		buf = &dev->bufs[dev->front_buf];
-		r = drmModeSetCrtc(fd, dev->crtc_id, buf->fb_id, 0, 0,
-				     &dev->conn_id, 1, &dev->mode);
-		if (r)
-			fprintf(stderr, "cannot set CRTC for connector %u (%d): %m\n",
-				dev->conn_id, errno);
-		f_data = malloc(sizeof(*f_data));
-		f_data->num_frames_drawn = 0;
-		dev->data = f_data;
+		dev->data = calloc(1, sizeof(struct flip_data));
 	}
 
-	/* draw some colors for 5seconds */
+	// Set modes
+	modeset_set_modes(modeset_list);
+
+	// Draw color bar
 	modeset_draw(fd, &ev, modeset_list);
 
-	/* cleanup everything */
+	// Free private data
 	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
 		free(dev->data);
 	}
+
+	// Free modeset data
 	modeset_cleanup(fd, &ev, modeset_list);
 
 	close(fd);
 
 	fprintf(stderr, "exiting\n");
 
-	return r;
+	return 0;
 }
 

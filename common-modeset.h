@@ -6,6 +6,8 @@
 struct modeset_dev {
 	struct modeset_dev *next;
 
+	int fd;
+
 	unsigned int front_buf;
 	int num_buffers;
 	struct framebuffer *bufs;
@@ -28,12 +30,9 @@ struct modeset_dev {
 
 };
 
-int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
-			     struct modeset_dev *dev, struct modeset_dev *dev_list);
-int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
-			     struct modeset_dev *dev, struct modeset_dev *dev_list);
-int modeset_prepare(int fd, int num_buffers,
-			     struct modeset_dev **dev_list);
+void modeset_prepare(int fd, struct modeset_dev **dev_list);
+void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers);
+void modeset_set_modes(struct modeset_dev *list);
 void modeset_draw(int fd, drmEventContext *ev,
 			     struct modeset_dev *dev_list);
 void modeset_cleanup(int fd, drmEventContext *ev,

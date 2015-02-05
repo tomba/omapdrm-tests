@@ -1,15 +1,12 @@
 
 #include "test.h"
 
-const int bar_width = 40;
-
 static struct modeset_dev *modeset_list = NULL;
 
 int main(int argc, char **argv)
 {
-	int r, fd = -1;
+	int fd;
 	const char *card = "/dev/dri/card0";
-	struct framebuffer *buf;
 	int opt;
 
 	while ((opt = getopt(argc, argv, "c:")) != -1) {
@@ -20,40 +17,24 @@ int main(int argc, char **argv)
 		}
 	}
 
-	fprintf(stderr, "Using card '%s'\n", card);
-
-	/* open the DRM device */
+	// open the DRM device
 	fd = drm_open_dev_dumb(card);
 
-	/* prepare all connectors and CRTCs */
-	r = modeset_prepare(fd, 2, &modeset_list);
-	ASSERT(r == 0);
+	// Prepare all connectors and CRTCs
+	modeset_prepare(fd, &modeset_list);
 
-	/* perform actual modesetting on each found connector+CRTC */
-	while (true) {
-		for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
-			fprintf(stderr, "Output %u: Connector %u, Encoder %u, CRTC %u, FB %u/%u, Mode %ux%u\n",
-				dev->output_id,
-				dev->conn_id, dev->enc_id, dev->crtc_id,
-				dev->bufs[0].fb_id, dev->bufs[1].fb_id,
-				dev->mode.hdisplay, dev->mode.vdisplay);
+	// Allocate buffers
+	modeset_alloc_fbs(modeset_list, 2);
 
-		dev->saved_crtc = drmModeGetCrtc(fd, dev->crtc_id);
-		buf = &dev->bufs[dev->front_buf];
-
+	// Draw test pattern
+	for (struct modeset_dev *dev = modeset_list; dev; dev = dev->next) {
+		struct framebuffer *buf;
+		buf = &dev->bufs[0];
 		drm_draw_test_pattern(buf);
-
-		r = drmModeSetCrtc(fd, dev->crtc_id, buf->fb_id, 0, 0,
-				       &dev->conn_id, 1, &dev->mode);
-		if (r)
-		fprintf(stderr, "cannot set CRTC for connector %u (%d): %m\n",
-		dev->conn_id, errno);
-		}
 	}
 
-	close(fd);
-
-	fprintf(stderr, "exiting\n");
-
-	return r;
+	// set modes repeatedly
+	while (true) {
+		modeset_set_modes(modeset_list);
+	}
 }
