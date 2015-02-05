@@ -14,9 +14,13 @@ CFLAGS += -O2 -Wall -std=c99 -D_GNU_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE
 
 all: $(PROGS)
 
-$(PROGS): common.o common-drm.o common-modeset.o
+$(PROGS): % : %.c common.o common-drm.o common-modeset.o
+	@echo "  [LD] $@"
+	@$(LINK.c) $^ $(LDLIBS) -o $@
 
-common%.o: common%.h
+%.o: %.c *.h
+	@echo "  [CC] $@"
+	@$(COMPILE.c) -o $@ $<
 
 .PHONY: strip clean
 
