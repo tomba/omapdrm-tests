@@ -37,6 +37,7 @@ void modeset_page_flip_event(int fd, unsigned int frame,
 		flip_d->max_flip_time = 0;
 		flip_d->draw_start_time = now;
 		flip_d->flip_time = now;
+		flip_d->draw_total_time = 0;
 	}
 
 	/* measure min/max flip time */
