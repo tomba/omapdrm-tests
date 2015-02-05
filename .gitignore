@@ -2,3 +2,5 @@
 db
 onoff
 modesetter
+omap-producer
+omap-consumer
