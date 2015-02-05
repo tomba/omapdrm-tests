@@ -13,6 +13,8 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+struct omap_bo;
+
 struct framebuffer {
 	int fd;
 	uint32_t width;
@@ -22,6 +24,7 @@ struct framebuffer {
 	uint32_t handle;
 	uint8_t *map;
 	uint32_t fb_id;
+	struct omap_bo *omap_bo;
 };
 
 int drm_open_dev_dumb(const char *node, int *out);
