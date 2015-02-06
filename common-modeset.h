@@ -38,5 +38,12 @@ void modeset_start_flip(struct modeset_dev *dev);
 void modeset_main_loop(struct modeset_dev *modeset_list, void (*flip_event)(void *));
 void modeset_cleanup(struct modeset_dev *dev_list);
 
-#endif
+static inline struct modeset_dev *find_dev(struct modeset_dev *list, int output_id)
+{
+	for_each_dev(dev, list)
+		if (dev->output_id == output_id)
+			return dev;
+	return NULL;
+}
 
+#endif
