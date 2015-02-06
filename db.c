@@ -1,7 +1,8 @@
 
 #include "test.h"
 
-const int bar_width = 40;
+static const int bar_width = 40;
+static const int bar_speed = 8;
 
 static struct modeset_dev *modeset_list = NULL;
 
@@ -83,9 +84,12 @@ static void page_flip_event(void *data)
 
 		get_time_now(&ts1);
 
-		priv->bar_xpos = (priv->bar_xpos + 8) % (buf->width - bar_width);
+		int old_xpos = (priv->bar_xpos + (buf->width - bar_width - bar_speed)) %
+			(buf->width - bar_width);
 
-		drm_draw_color_bar(buf, priv->bar_xpos, bar_width);
+		priv->bar_xpos = (priv->bar_xpos + bar_speed) % (buf->width - bar_width);
+
+		drm_draw_color_bar(buf, old_xpos, priv->bar_xpos, bar_width);
 
 		get_time_now(&ts2);
 

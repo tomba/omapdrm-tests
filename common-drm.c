@@ -131,7 +131,7 @@ void drm_draw_test_pattern(struct framebuffer *fb_info)
 	}
 }
 
-void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width)
+void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int width)
 {
 	const unsigned int colors32[] = {
 		0xffffff,
@@ -153,7 +153,8 @@ void drm_draw_color_bar(struct framebuffer *buf, int xpos, int width)
 		unsigned int bcol = colors32[y * sizeof(colors32) / 4 / buf->height];
 		uint32_t *line = (uint32_t*)(buf->map + buf->stride * y);
 
-		memset(line, 0, buf->width * 4);
+		for (unsigned x = old_xpos; x < old_xpos + width; ++x)
+			line[x] = 0;
 
 		for (unsigned x = xpos; x < xpos + width; ++x)
 			line[x] = bcol;
