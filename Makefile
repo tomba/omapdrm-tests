@@ -1,4 +1,4 @@
-PROGS=db onoff modesetter
+PROGS=db onoff modesetter testpat
 OMAP_PROGS=omap-producer omap-consumer
 
 PKG_CONFIG=pkg-config

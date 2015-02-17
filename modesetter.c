@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 	for_each_dev(dev, modeset_list) {
 		struct framebuffer *buf;
 		buf = &dev->bufs[0];
-		drm_draw_test_pattern(buf);
+		drm_draw_test_pattern(buf, 0);
 	}
 
 	// set modes repeatedly

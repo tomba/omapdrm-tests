@@ -86,48 +86,169 @@ void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
 	*p = color;
 }
 
-void drm_draw_test_pattern(struct framebuffer *fb_info)
+static void drm_draw_test_pattern_default(struct framebuffer *fb)
 {
 	unsigned x, y;
-	unsigned w = fb_info->width;
-	unsigned h = fb_info->height;
+	unsigned w = fb->width;
+	unsigned h = fb->height;
+
+	const int mw = 20;
+
+	const int xm1 = mw;
+	const int xm2 = w - mw - 1;
+	const int ym1 = mw;
+	const int ym2 = h - mw - 1;
 
 	for (y = 0; y < h; y++) {
 		for (x = 0; x < w; x++) {
-			if (x < 20 && y < 20)
-				draw_pixel(fb_info, x, y, 0xffffff);
-			else if (x < 20 && (y > 20 && y < h - 20))
-				draw_pixel(fb_info, x, y, 0xff);
-			else if (y < 20 && (x > 20 && x < w - 20))
-				draw_pixel(fb_info, x, y, 0xff00);
-			else if (x > w - 20 && (y > 20 && y < h - 20))
-				draw_pixel(fb_info, x, y, 0xff0000);
-			else if (y > h - 20 && (x > 20 && x < w - 20))
-				draw_pixel(fb_info, x, y, 0xffff00);
-			else if (x == 20 || x == w - 20 ||
-					y == 20 || y == h - 20)
-				draw_pixel(fb_info, x, y, 0xffffff);
-			else if (x == y || w - x == h - y)
-				draw_pixel(fb_info, x, y, 0xff00ff);
-			else if (w - x == y || x == h - y)
-				draw_pixel(fb_info, x, y, 0x00ffff);
-			else if (x > 20 && y > 20 && x < w - 20 && y < h - 20) {
-				int t = x * 3 / w;
-				unsigned r = 0, g = 0, b = 0;
+			// white margin lines
+			if (x == xm1 || x == xm2 || y == ym1 || y == ym2)
+				draw_pixel(fb, x, y, 0xffffff);
+			// white box outlines to corners
+			else if ((x == 0 || x == w - 1) && (y < ym1 || y > ym2))
+				draw_pixel(fb, x, y, 0xffffff);
+			// white box outlines to corners
+			else if ((y == 0 || y == h - 1) && (x < xm1 || x > xm2))
+				draw_pixel(fb, x, y, 0xffffff);
+			// blue bar on the left
+			else if (x < xm1 && (y > ym1 && y < ym2))
+				draw_pixel(fb, x, y, 0xff);
+			// blue bar on the top
+			else if (y < ym1 && (x > xm1 && x < xm2))
+				draw_pixel(fb, x, y, 0xff);
+			// red bar on the right
+			else if (x > xm2 && (y > ym1 && y < ym2))
+				draw_pixel(fb, x, y, 0xff0000);
+			// red bar on the bottom
+			else if (y > ym2 && (x > xm1 && x < xm2))
+				draw_pixel(fb, x, y, 0xff0000);
+			// inside the margins
+			else if (x > xm1 && x < xm2 && y > ym1 && y < ym2) {
+				// diagonal line
+				if (x == y || w - x == h - y)
+					draw_pixel(fb, x, y, 0xffffff);
+				// diagonal line
+				else if (w - x == y || x == h - y)
+					draw_pixel(fb, x, y, 0xffffff);
+				else {
+					int t = (x - xm1 - 1) * 3 / (xm2 - xm1 - 1);
+					unsigned r = 0, g = 0, b = 0;
 
-				if (t == 0)
-					b = (y % 256);
-				else if (t == 1)
-					g = (y % 256);
-				else if (t == 2)
-					r = (y % 256);
+					switch (t) {
+					case 0:
+						r = (y % 256);
+						break;
+					case 1:
+						g = (y % 256);
+						break;
+					case 2:
+						b = (y % 256);
+						break;
+					}
 
-				unsigned c = (r << 16) | (g << 8) | (b << 0);
-				draw_pixel(fb_info, x, y, c);
+					unsigned c = (r << 16) | (g << 8) | (b << 0);
+					draw_pixel(fb, x, y, c);
+				}
+			// black corners
 			} else {
-				draw_pixel(fb_info, x, y, 0);
+				draw_pixel(fb, x, y, 0);
 			}
 		}
+	}
+}
+
+static void drm_draw_test_pattern_edges(struct framebuffer *fb)
+{
+	unsigned x, y;
+	unsigned w = fb->width;
+	unsigned h = fb->height;
+
+	for (y = 0; y < h; y++) {
+		for (x = 0; x < w; x++) {
+			if (x == 0 || y == 0 || x == w - 1 || y == h - 1)
+				draw_pixel(fb, x, y, 0xffffff);
+			else
+				draw_pixel(fb, x, y, 0x0);
+		}
+	}
+}
+
+#define MAKE_RGBA(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
+
+static void fill_smpte_rgb32(struct framebuffer *fb)
+{
+	const uint32_t colors_top[] = {
+		MAKE_RGBA(192, 192, 192, 255),	/* grey */
+		MAKE_RGBA(192, 192, 0, 255),	/* yellow */
+		MAKE_RGBA(0, 192, 192, 255),	/* cyan */
+		MAKE_RGBA(0, 192, 0, 255),	/* green */
+		MAKE_RGBA(192, 0, 192, 255),	/* magenta */
+		MAKE_RGBA(192, 0, 0, 255),	/* red */
+		MAKE_RGBA(0, 0, 192, 255),	/* blue */
+	};
+
+	const uint32_t colors_middle[] = {
+		MAKE_RGBA(0, 0, 192, 255),	/* blue */
+		MAKE_RGBA(19, 19, 19, 255),	/* black */
+		MAKE_RGBA(192, 0, 192, 255),	/* magenta */
+		MAKE_RGBA(19, 19, 19, 255),	/* black */
+		MAKE_RGBA(0, 192, 192, 255),	/* cyan */
+		MAKE_RGBA(19, 19, 19, 255),	/* black */
+		MAKE_RGBA(192, 192, 192, 255),	/* grey */
+	};
+
+	const uint32_t colors_bottom[] = {
+		MAKE_RGBA(0, 33, 76, 255),	/* in-phase */
+		MAKE_RGBA(255, 255, 255, 255),	/* super white */
+		MAKE_RGBA(50, 0, 106, 255),	/* quadrature */
+		MAKE_RGBA(19, 19, 19, 255),	/* black */
+		MAKE_RGBA(9, 9, 9, 255),	/* 3.5% */
+		MAKE_RGBA(19, 19, 19, 255),	/* 7.5% */
+		MAKE_RGBA(29, 29, 29, 255),	/* 11.5% */
+		MAKE_RGBA(19, 19, 19, 255),	/* black */
+	};
+
+	unsigned width = fb->width;
+	unsigned height = fb->height;
+
+	unsigned int x;
+	unsigned int y;
+
+	for (y = 0; y < height * 6 / 9; ++y) {
+		for (x = 0; x < width; ++x)
+			draw_pixel(fb, x, y, colors_top[x * 7 / width]);
+	}
+
+	for (; y < height * 7 / 9; ++y) {
+		for (x = 0; x < width; ++x)
+			draw_pixel(fb, x, y, colors_middle[x * 7 / width]);
+	}
+
+	for (; y < height; ++y) {
+		for (x = 0; x < width * 5 / 7; ++x)
+			draw_pixel(fb, x, y,
+				colors_bottom[x * 4 / (width * 5 / 7)]);
+		for (; x < width * 6 / 7; ++x)
+			draw_pixel(fb, x, y,
+				colors_bottom[(x - width * 5 / 7) * 3 / (width / 7) + 4]);
+		for (; x < width; ++x)
+			draw_pixel(fb, x, y, colors_bottom[7]);
+	}
+}
+
+void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
+{
+	switch (pattern) {
+	case 0:
+	default:
+		drm_draw_test_pattern_default(fb);
+		break;
+	case 1:
+		fill_smpte_rgb32(fb);
+		break;
+	case 2:
+		drm_draw_test_pattern_edges(fb);
+		break;
 	}
 }
 

@@ -3,10 +3,17 @@
 
 static struct modeset_dev *modeset_list = NULL;
 
+static void usage()
+{
+	printf("usage: testpat <pattern>\n");
+
+	exit(1);
+}
+
 int main(int argc, char **argv)
 {
-	int opt;
 	int fd;
+	int opt;
 	const char *card = "/dev/dri/card0";
 
 	while ((opt = getopt(argc, argv, "c:")) != -1) {
@@ -14,8 +21,20 @@ int main(int argc, char **argv)
 		case 'c':
 			card = optarg;
 			break;
+		default:
+			usage();
 		}
 	}
+
+	int pattern;
+
+	int numargs = argc - optind;
+	if (numargs == 0)
+		pattern = 0;
+	else if (numargs == 1)
+		pattern = atoi(argv[optind]);
+	else
+		usage();
 
 	// open the DRM device
 	fd = drm_open_dev_dumb(card);
@@ -30,24 +49,22 @@ int main(int argc, char **argv)
 	for_each_dev(dev, modeset_list) {
 		struct framebuffer *buf;
 		buf = &dev->bufs[0];
-		drm_draw_test_pattern(buf, 0);
+		drm_draw_test_pattern(buf, pattern);
 	}
 
 	// Set modes
 	modeset_set_modes(modeset_list);
 
-	// turnd connectors on and off repeatedly
-	int c = 0;
+	printf("press enter to exit\n");
 
-	while (true) {
-		usleep(500000);
-		for_each_dev(dev, modeset_list) {
-			usleep(1500000);
-			drm_set_dpms(fd, dev->conn_id, dev->dpms);
+	getchar();
 
-			dev->dpms = (c & 1) ? DRM_MODE_DPMS_OFF : DRM_MODE_DPMS_ON;
-		}
+	// Free modeset data
+	modeset_cleanup(modeset_list);
 
-		c++;
-	}
+	close(fd);
+
+	fprintf(stderr, "exiting\n");
+
+	return 0;
 }

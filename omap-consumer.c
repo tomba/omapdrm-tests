@@ -382,7 +382,7 @@ int main(int argc, char **argv)
 
 	// Draw test pattern
 	for_each_dev(dev, modeset_list)
-		drm_draw_test_pattern(&dev->bufs[0]);
+		drm_draw_test_pattern(&dev->bufs[0], 0);
 
 	// Allocate private data
 	for_each_dev(dev, modeset_list) {
