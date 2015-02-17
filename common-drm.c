@@ -134,20 +134,22 @@ static void drm_draw_test_pattern_default(struct framebuffer *fb)
 					int t = (x - xm1 - 1) * 3 / (xm2 - xm1 - 1);
 					unsigned r = 0, g = 0, b = 0;
 
+					unsigned c = (y - ym1 - 1) % 256;
+
 					switch (t) {
 					case 0:
-						r = (y % 256);
+						r = c;
 						break;
 					case 1:
-						g = (y % 256);
+						g = c;
 						break;
 					case 2:
-						b = (y % 256);
+						b = c;
 						break;
 					}
 
-					unsigned c = (r << 16) | (g << 8) | (b << 0);
-					draw_pixel(fb, x, y, c);
+					draw_pixel(fb, x, y,
+						(r << 16) | (g << 8) | (b << 0));
 				}
 			// black corners
 			} else {
