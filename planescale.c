@@ -1,7 +1,7 @@
 
 #include "test.h"
 
-static struct modeset_dev *modeset_list = NULL;
+static struct modeset_out *modeset_list = NULL;
 
 struct flip_data {
 	drmModePlane *plane;
@@ -9,7 +9,7 @@ struct flip_data {
 	int w, h;
 };
 
-static void alloc_planes(int fd, struct modeset_dev *modeset_list)
+static void alloc_planes(int fd, struct modeset_out *modeset_list)
 {
 	drmModePlaneRes *plane_resources;
 	int cur_plane;
@@ -19,8 +19,8 @@ static void alloc_planes(int fd, struct modeset_dev *modeset_list)
 
 	cur_plane = 0;
 
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 
 		for (; cur_plane < plane_resources->count_planes; cur_plane++) {
 			drmModePlane *ovr;
@@ -29,7 +29,7 @@ static void alloc_planes(int fd, struct modeset_dev *modeset_list)
 			ASSERT(ovr);
 
 			printf("Output %d: using plane %d\n",
-				dev->output_id, ovr->plane_id);
+				out->output_id, ovr->plane_id);
 
 			pdata->plane = ovr;
 
@@ -40,10 +40,10 @@ static void alloc_planes(int fd, struct modeset_dev *modeset_list)
 	}
 }
 
-static void free_planes(struct modeset_dev *modeset_list)
+static void free_planes(struct modeset_out *modeset_list)
 {
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 
 		if (!pdata->plane)
 			continue;
@@ -76,25 +76,25 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 2);
 
 	// Allocate private data
-	for_each_dev(dev, modeset_list)
-		dev->data = calloc(1, sizeof(struct flip_data));
+	for_each_output(out, modeset_list)
+		out->data = calloc(1, sizeof(struct flip_data));
 
 	alloc_planes(fd, modeset_list);
 
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 
 		if (!pdata->plane)
 			continue;
 
-		drm_create_dumb_fb(dev->fd,
-			dev->mode.hdisplay, dev->mode.vdisplay,
+		drm_create_dumb_fb(out->fd,
+			out->mode.hdisplay, out->mode.vdisplay,
 			&pdata->plane_buf);
 
 		drm_draw_test_pattern(&pdata->plane_buf, 0);
 
-		pdata->w = dev->mode.hdisplay;
-		pdata->h = dev->mode.vdisplay;
+		pdata->w = out->mode.hdisplay;
+		pdata->h = out->mode.vdisplay;
 	}
 
 	// Set modes
@@ -102,8 +102,8 @@ int main(int argc, char **argv)
 
 	while (true) {
 
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 		struct framebuffer *buf;
 
 		buf = &pdata->plane_buf;
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
 			pdata->h = buf->height;
 
 		printf("%d: %4dx%4d -> %4dx%4d (%1.2f x %1.2f)    ",
-			dev->output_id,
+			out->output_id,
 			buf->width, buf->height, pdata->w, pdata->h,
 			(float)pdata->w / buf->width,
 			(float)pdata->h / buf->height);
@@ -122,14 +122,14 @@ int main(int argc, char **argv)
 
 	printf("\n"); fflush(stdout);
 
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 		struct framebuffer *buf;
 		int r;
 
 		buf = &pdata->plane_buf;
 
-		r = drmModeSetPlane(dev->fd, pdata->plane->plane_id, dev->crtc_id,
+		r = drmModeSetPlane(out->fd, pdata->plane->plane_id, out->crtc_id,
 			buf->fb_id, 0,
 			0, 0, pdata->w, pdata->h,
 			0 << 16, 0 << 16,
@@ -137,8 +137,8 @@ int main(int argc, char **argv)
 		ASSERT(r == 0);
 	}
 
-	for_each_dev(dev, modeset_list) {
-		struct flip_data *pdata = dev->data;
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
 		pdata->w -= 1;
 		pdata->h -= 1;
 	}
@@ -150,8 +150,8 @@ int main(int argc, char **argv)
 	free_planes(modeset_list);
 
 	// Free private data
-	for_each_dev(dev, modeset_list)
-		free(dev->data);
+	for_each_output(out, modeset_list)
+		free(out->data);
 
 	// Free modeset data
 	modeset_cleanup(modeset_list);

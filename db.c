@@ -4,7 +4,7 @@
 static const int bar_width = 40;
 static const int bar_speed = 8;
 
-static struct modeset_dev *modeset_list = NULL;
+static struct modeset_out *modeset_list = NULL;
 
 struct flip_data {
 	int bar_xpos;
@@ -19,9 +19,9 @@ struct flip_data {
 
 static void page_flip_event(void *data)
 {
-	struct modeset_dev *dev = data;
+	struct modeset_out *out = data;
 	struct timespec now;
-	struct flip_data *priv = dev->data;
+	struct flip_data *priv = out->data;
 
 	get_time_now(&now);
 
@@ -62,7 +62,7 @@ static void page_flip_event(void *data)
 		draw_avg = (float)priv->draw_total_time / measure_interval / 1000;
 
 		printf("Output %u: draw %f ms, flip avg/min/max %f/%f/%f\n",
-			dev->output_id,
+			out->output_id,
 			draw_avg,
 			flip_avg,
 			priv->min_flip_time / 1000.0,
@@ -78,7 +78,7 @@ static void page_flip_event(void *data)
 	/* draw */
 	{
 		/* back buffer */
-		struct framebuffer *buf = &dev->bufs[(dev->front_buf + 1) % dev->num_buffers];
+		struct framebuffer *buf = &out->bufs[(out->front_buf + 1) % out->num_buffers];
 
 		struct timespec ts1, ts2;
 
@@ -98,7 +98,7 @@ static void page_flip_event(void *data)
 
 	priv->num_frames_drawn += 1;
 
-	modeset_start_flip(dev);
+	modeset_start_flip(out);
 }
 
 int main(int argc, char **argv)
@@ -125,8 +125,8 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 2);
 
 	// Allocate private data
-	for_each_dev(dev, modeset_list)
-		dev->data = calloc(1, sizeof(struct flip_data));
+	for_each_output(out, modeset_list)
+		out->data = calloc(1, sizeof(struct flip_data));
 
 	// Set modes
 	modeset_set_modes(modeset_list);
@@ -135,8 +135,8 @@ int main(int argc, char **argv)
 	modeset_main_loop(modeset_list, &page_flip_event);
 
 	// Free private data
-	for_each_dev(dev, modeset_list)
-		free(dev->data);
+	for_each_output(out, modeset_list)
+		free(out->data);
 
 	// Free modeset data
 	modeset_cleanup(modeset_list);

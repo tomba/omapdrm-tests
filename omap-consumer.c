@@ -31,7 +31,7 @@ struct flip_data {
 	struct framebuffer *current_fb, *queued_fb;
 };
 
-static struct modeset_dev *modeset_list = NULL;
+static struct modeset_out *modeset_list = NULL;
 
 static int count_queued_fbs(struct flip_data *priv)
 {
@@ -50,11 +50,11 @@ static void update_queue_counts()
 
 	int count = 0;
 
-	for_each_dev(dev, modeset_list) {
-		volatile struct shared_output *out = &sdata->outputs[count++];
+	for_each_output(out, modeset_list) {
+		volatile struct shared_output *sout = &sdata->outputs[count++];
 
-		int c = count_queued_fbs(dev->data);
-		out->request_count = c >= 10 ? 0 : 10 - c;
+		int c = count_queued_fbs(out->data);
+		sout->request_count = c >= 10 ? 0 : 10 - c;
 	}
 
 	//printf("C %d, %d\n",
@@ -68,11 +68,11 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 				    unsigned int sec, unsigned int usec,
 				    void *data)
 {
-	struct modeset_dev *dev = data;
+	struct modeset_out *out = data;
 	struct timespec now;
-	struct flip_data *priv = dev->data;
+	struct flip_data *priv = out->data;
 
-	//printf("FLIP %d\n", dev->output_id);
+	//printf("FLIP %d\n", out->output_id);
 
 	if (priv->current_fb) {
 		struct framebuffer *fb = priv->current_fb;
@@ -91,9 +91,9 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 	priv->current_fb = priv->queued_fb;
 	priv->queued_fb = NULL;
 
-	dev->pflip_pending = false;
+	out->pflip_pending = false;
 
-	if (dev->cleanup)
+	if (out->cleanup)
 		return;
 
 	get_time_now(&now);
@@ -132,7 +132,7 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 		flip_avg = (float)us / measure_interval / 1000;
 
 		printf("Output %u: flip avg/min/max %f/%f/%f\n",
-			dev->output_id,
+			out->output_id,
 			flip_avg,
 			priv->min_flip_time / 1000.0,
 			priv->max_flip_time / 1000.0);
@@ -152,7 +152,7 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 	struct framebuffer *fb;
 	int r;
 
-	//printf("flip: queue new pflig: %d\n", dev->output_id);
+	//printf("flip: queue new pflig: %d\n", out->output_id);
 
 	rfb = TAILQ_FIRST(&priv->fb_list_head);
 	TAILQ_REMOVE(&priv->fb_list_head, priv->fb_list_head.tqh_first, entries);
@@ -160,9 +160,9 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 	fb = rfb->fb;
 	free(rfb);
 
-	r = drmModePageFlip(dev->fd, dev->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, dev);
+	r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
 	ASSERT(r == 0);
-	dev->pflip_pending = true;
+	out->pflip_pending = true;
 	priv->queued_fb = fb;
 
 	update_queue_counts();
@@ -195,11 +195,11 @@ static void receive_fb(int sfd, int *output_id, struct framebuffer *fb)
 
 	*output_id = buf[0];
 
-	struct modeset_dev *dev = find_dev(modeset_list, *output_id);
-	ASSERT(dev);
+	struct modeset_out *out = find_output(modeset_list, *output_id);
+	ASSERT(out);
 
-	int w = dev->mode.hdisplay;
-	int h = dev->mode.vdisplay;
+	int w = out->mode.hdisplay;
+	int h = out->mode.vdisplay;
 
 	ASSERT(w != 0 && h != 0);
 
@@ -275,15 +275,15 @@ static void main_loop(int sfd)
 			//printf("received fb %d, for output %d, handle %x\n", count, output_id, fb->handle);
 			count++;
 
-			struct modeset_dev *dev = find_dev(modeset_list, output_id);
-			struct flip_data *priv = dev->data;
-			ASSERT(dev);
+			struct modeset_out *out = find_output(modeset_list, output_id);
+			struct flip_data *priv = out->data;
+			ASSERT(out);
 
 			if (priv->queued_fb == NULL) {
-				//printf("queue pflip %d\n", dev->output_id);
-				r = drmModePageFlip(dev->fd, dev->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, dev);
+				//printf("queue pflip %d\n", out->output_id);
+				r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
 				ASSERT(r == 0);
-				dev->pflip_pending = true;
+				out->pflip_pending = true;
 				priv->queued_fb = fb;
 			} else {
 				struct received_fb *rfb = malloc(sizeof(*rfb));
@@ -298,18 +298,18 @@ static void main_loop(int sfd)
 
 	printf("done\n");
 
-	for_each_dev(dev, modeset_list) {
-		dev->cleanup = true;
+	for_each_output(out, modeset_list) {
+		out->cleanup = true;
 
-		if (!dev->pflip_pending)
+		if (!out->pflip_pending)
 			continue;
 
 		/* if a pageflip is pending, wait for it to complete */
 		fprintf(stderr,
 			"wait for pending page-flip to complete for output %d...\n",
-			dev->output_id);
+			out->output_id);
 
-		while (dev->pflip_pending) {
+		while (out->pflip_pending) {
 			int r;
 			r = drmHandleEvent(drm_fd, &ev);
 			ASSERT(r == 0);
@@ -323,13 +323,13 @@ static void setup_config()
 
 	volatile struct shared_data *sdata = global.sdata;
 
-	for_each_dev(dev, modeset_list) {
-		volatile struct shared_output *out = &sdata->outputs[count++];
+	for_each_output(out, modeset_list) {
+		volatile struct shared_output *sout = &sdata->outputs[count++];
 
-		out->output_id = dev->output_id;
-		out->width = dev->mode.hdisplay;
-		out->height = dev->mode.vdisplay;
-		out->request_count = 0;
+		sout->output_id = out->output_id;
+		sout->width = out->mode.hdisplay;
+		sout->height = out->mode.vdisplay;
+		sout->request_count = 0;
 	}
 
 	global.sdata->num_outputs = count;
@@ -381,15 +381,15 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 1);
 
 	// Draw test pattern
-	for_each_dev(dev, modeset_list)
-		drm_draw_test_pattern(&dev->bufs[0], 0);
+	for_each_output(out, modeset_list)
+		drm_draw_test_pattern(&out->bufs[0], 0);
 
 	// Allocate private data
-	for_each_dev(dev, modeset_list) {
+	for_each_output(out, modeset_list) {
 		struct flip_data *priv;
 		priv = calloc(1, sizeof(struct flip_data));
 		TAILQ_INIT(&priv->fb_list_head);
-		dev->data = priv;
+		out->data = priv;
 	}
 
 	// Set modes
@@ -406,8 +406,8 @@ int main(int argc, char **argv)
 	main_loop(sfd);
 
 	// Free private data
-	for_each_dev(dev, modeset_list)
-		free(dev->data);
+	for_each_output(out, modeset_list)
+		free(out->data);
 
 	r = close(sfd);
 	ASSERT(r == 0);

@@ -3,8 +3,8 @@
 
 #include "common-drm.h"
 
-struct modeset_dev {
-	struct modeset_dev *next;
+struct modeset_out {
+	struct modeset_out *next;
 
 	int fd;
 
@@ -31,18 +31,18 @@ struct modeset_dev {
 
 };
 
-void modeset_prepare(int fd, struct modeset_dev **dev_list);
-void modeset_alloc_fbs(struct modeset_dev *list, int num_buffers);
-void modeset_set_modes(struct modeset_dev *list);
-void modeset_start_flip(struct modeset_dev *dev);
-void modeset_main_loop(struct modeset_dev *modeset_list, void (*flip_event)(void *));
-void modeset_cleanup(struct modeset_dev *dev_list);
+void modeset_prepare(int fd, struct modeset_out **out_list);
+void modeset_alloc_fbs(struct modeset_out *list, int num_buffers);
+void modeset_set_modes(struct modeset_out *list);
+void modeset_start_flip(struct modeset_out *out);
+void modeset_main_loop(struct modeset_out *modeset_list, void (*flip_event)(void *));
+void modeset_cleanup(struct modeset_out *out_list);
 
-static inline struct modeset_dev *find_dev(struct modeset_dev *list, int output_id)
+static inline struct modeset_out *find_output(struct modeset_out *list, int output_id)
 {
-	for_each_dev(dev, list)
-		if (dev->output_id == output_id)
-			return dev;
+	for_each_output(out, list)
+		if (out->output_id == output_id)
+			return out;
 	return NULL;
 }
 

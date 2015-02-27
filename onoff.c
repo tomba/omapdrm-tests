@@ -1,7 +1,7 @@
 
 #include "test.h"
 
-static struct modeset_dev *modeset_list = NULL;
+static struct modeset_out *modeset_list = NULL;
 
 int main(int argc, char **argv)
 {
@@ -27,9 +27,9 @@ int main(int argc, char **argv)
 	modeset_alloc_fbs(modeset_list, 1);
 
 	// Draw test pattern
-	for_each_dev(dev, modeset_list) {
+	for_each_output(out, modeset_list) {
 		struct framebuffer *buf;
-		buf = &dev->bufs[0];
+		buf = &out->bufs[0];
 		drm_draw_test_pattern(buf, 0);
 	}
 
@@ -41,11 +41,11 @@ int main(int argc, char **argv)
 
 	while (true) {
 		usleep(500000);
-		for_each_dev(dev, modeset_list) {
+		for_each_output(out, modeset_list) {
 			usleep(1500000);
-			drm_set_dpms(fd, dev->conn_id, dev->dpms);
+			drm_set_dpms(fd, out->conn_id, out->dpms);
 
-			dev->dpms = (c & 1) ? DRM_MODE_DPMS_OFF : DRM_MODE_DPMS_ON;
+			out->dpms = (c & 1) ? DRM_MODE_DPMS_OFF : DRM_MODE_DPMS_ON;
 		}
 
 		c++;
