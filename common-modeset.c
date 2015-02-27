@@ -150,8 +150,16 @@ void modeset_prepare(int fd, struct modeset_out **out_list)
 
 		/* free connector data and link output into output list */
 		drmModeFreeConnector(conn);
-		out->next = o_list;
-		o_list = out;
+
+		if (o_list == NULL) {
+			o_list = out;
+		}
+		else {
+			struct modeset_out *o = o_list;
+			while (o->next != NULL)
+				o = o->next;
+			o->next = out;
+		}
 	}
 
 	/* free resources again */
