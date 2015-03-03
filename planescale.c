@@ -35,9 +35,13 @@ static void alloc_planes(int fd, struct modeset_out *modeset_list)
 
 			cur_plane++;
 
+			drmModeFreePlane(ovr);
+
 			break;
 		}
 	}
+
+	drmModeFreePlaneResources(plane_resources);
 }
 
 static void free_planes(struct modeset_out *modeset_list)
