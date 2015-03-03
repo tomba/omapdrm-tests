@@ -8,6 +8,8 @@
 #include "test.h"
 #include "omap-prod-con.h"
 
+#define MAX_QUEUED_BUFS 10
+
 static struct {
 	int drm_fd;
 	int sfd;
@@ -76,7 +78,7 @@ static void update_queue_counts()
 		volatile struct shared_output *sout = &sdata->outputs[count++];
 
 		int c = count_queued_fbs(out->data);
-		sout->request_count = c >= 10 ? 0 : 10 - c;
+		sout->request_count = c >= MAX_QUEUED_BUFS ? 0 : MAX_QUEUED_BUFS - c;
 	}
 
 	//printf("C %d, %d\n",
