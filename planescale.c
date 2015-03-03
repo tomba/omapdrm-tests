@@ -4,12 +4,12 @@
 static struct modeset_out *modeset_list = NULL;
 
 struct flip_data {
-	drmModePlane *plane;
+	uint32_t plane_id;
 	struct framebuffer plane_buf;
 	int w, h;
 };
 
-static void alloc_planes(int fd, struct modeset_out *modeset_list)
+static void find_planes(int fd, struct modeset_out *modeset_list)
 {
 	drmModePlaneRes *plane_resources;
 	int cur_plane;
@@ -31,7 +31,7 @@ static void alloc_planes(int fd, struct modeset_out *modeset_list)
 			printf("Output %d: using plane %d\n",
 				out->output_id, ovr->plane_id);
 
-			pdata->plane = ovr;
+			pdata->plane_id = ovr->plane_id;
 
 			cur_plane++;
 
@@ -42,18 +42,6 @@ static void alloc_planes(int fd, struct modeset_out *modeset_list)
 	}
 
 	drmModeFreePlaneResources(plane_resources);
-}
-
-static void free_planes(struct modeset_out *modeset_list)
-{
-	for_each_output(out, modeset_list) {
-		struct flip_data *pdata = out->data;
-
-		if (!pdata->plane)
-			continue;
-
-		drmModeFreePlane(pdata->plane);
-	}
 }
 
 int main(int argc, char **argv)
@@ -83,13 +71,10 @@ int main(int argc, char **argv)
 	for_each_output(out, modeset_list)
 		out->data = calloc(1, sizeof(struct flip_data));
 
-	alloc_planes(fd, modeset_list);
+	find_planes(fd, modeset_list);
 
 	for_each_output(out, modeset_list) {
 		struct flip_data *pdata = out->data;
-
-		if (!pdata->plane)
-			continue;
 
 		drm_create_dumb_fb(out->fd,
 			out->mode.hdisplay, out->mode.vdisplay,
@@ -133,7 +118,7 @@ int main(int argc, char **argv)
 
 		buf = &pdata->plane_buf;
 
-		r = drmModeSetPlane(out->fd, pdata->plane->plane_id, out->crtc_id,
+		r = drmModeSetPlane(out->fd, pdata->plane_id, out->crtc_id,
 			buf->fb_id, 0,
 			0, 0, pdata->w, pdata->h,
 			0 << 16, 0 << 16,
@@ -150,8 +135,6 @@ int main(int argc, char **argv)
 	usleep(1000 * 32);
 
 	}
-
-	free_planes(modeset_list);
 
 	// Free private data
 	for_each_output(out, modeset_list)
