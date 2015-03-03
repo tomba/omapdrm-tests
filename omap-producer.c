@@ -10,10 +10,17 @@
 static const int bar_width = 40;
 static const int bar_speed = 8;
 
+#define MAX_OUTPUTS 5
+#define BUF_QUEUE_SIZE 15
+
+static const bool always_create_new_bufs = false;
+
 static struct {
 	int drm_fd;
 	struct omap_device *omap_dev;
 	volatile struct shared_data *sdata;
+	struct framebuffer bufs[MAX_OUTPUTS][BUF_QUEUE_SIZE];
+	int buf_num[MAX_OUTPUTS];
 } global;
 
 static void create_omap_fb(int width, int height, int bpp, struct framebuffer *buf)
@@ -160,21 +167,32 @@ static void main_loop(int cfd)
 
 			output->request_count--;
 
-			struct framebuffer fb = { 0 };
+			struct framebuffer *fb;
 
 			const int width = output->width;
 			const int height = output->height;
 			const int bpp = 32;
 
-			create_omap_fb(width, height, bpp, &fb);
+			if (always_create_new_bufs) {
+				fb = &global.bufs[i][0];
 
-			drm_draw_color_bar(&fb, 0, bar_xpos[i], bar_width);
+				create_omap_fb(width, height, bpp, fb);
+			} else {
 
-			bar_xpos[i] = (bar_xpos[i] + bar_speed) % (fb.width - bar_width);
+				fb = &global.bufs[i][global.buf_num[i]];
+				global.buf_num[i] = (global.buf_num[i] + 1) % BUF_QUEUE_SIZE;
 
-			send_fb(cfd, output->output_id, &fb);
+				drm_clear_fb(fb);
+			}
 
-			destroy_omap_fb(&fb);
+			drm_draw_color_bar(fb, -1, bar_xpos[i], bar_width);
+
+			bar_xpos[i] = (bar_xpos[i] + bar_speed) % (fb->width - bar_width);
+
+			send_fb(cfd, output->output_id, fb);
+
+			if (always_create_new_bufs)
+				destroy_omap_fb(fb);
 
 			//printf("sent fb %d, handle %x\n", count, fb.handle);
 
@@ -201,6 +219,30 @@ static void open_shared_mem()
 	ASSERT(sdata);
 
 	global.sdata = sdata;
+}
+
+static void create_bufs()
+{
+	volatile struct shared_data *sdata = global.sdata;
+
+	for (int i = 0; i < sdata->num_outputs; ++i) {
+		volatile struct shared_output *output;
+
+		output = &sdata->outputs[i];
+
+		for (int n = 0; n < BUF_QUEUE_SIZE; ++n) {
+			const int width = output->width;
+			const int height = output->height;
+			const int bpp = 32;
+
+			struct framebuffer *fb;
+
+			fb = &global.bufs[i][n];
+
+			create_omap_fb(width, height, bpp, fb);
+			drm_draw_test_pattern(fb, 0);
+		}
+	}
 }
 
 int main(int argc, char **argv)
@@ -232,6 +274,9 @@ int main(int argc, char **argv)
 	ASSERT(cfd > 0);
 
 	printf("accepted connection\n");
+
+	if (!always_create_new_bufs)
+		create_bufs();
 
 	main_loop(cfd);
 

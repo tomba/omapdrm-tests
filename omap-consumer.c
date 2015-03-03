@@ -395,13 +395,13 @@ int main(int argc, char **argv)
 	// Set modes
 	modeset_set_modes(modeset_list);
 
-	int sfd = connect_to_producer();
-
-	global.sfd = sfd;
-
 	open_shared_mem();
 
 	setup_config();
+
+	int sfd = connect_to_producer();
+
+	global.sfd = sfd;
 
 	main_loop(sfd);
 

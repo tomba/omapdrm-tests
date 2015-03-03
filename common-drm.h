@@ -34,6 +34,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int wid
 void drm_set_dpms(int fd, uint32_t conn_id, int dpms);
 void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color);
 void drm_draw_test_pattern(struct framebuffer *fb, int pattern);
+void drm_clear_fb(struct framebuffer *fb);
 
 #define for_each_output(pos, head) \
 	for (struct modeset_out *(pos) = (head); (pos); (pos) = (pos)->next)
