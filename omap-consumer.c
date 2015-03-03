@@ -10,6 +10,8 @@
 
 #define MAX_QUEUED_BUFS 10
 
+static const bool use_plane = false;
+
 static struct {
 	int drm_fd;
 	int sfd;
@@ -31,6 +33,8 @@ struct flip_data {
 
 	TAILQ_HEAD(tailhead, received_fb) fb_list_head;
 	struct framebuffer *current_fb, *queued_fb;
+
+	uint32_t plane_id;
 };
 
 static struct modeset_out *modeset_list = NULL;
@@ -86,6 +90,48 @@ static void update_queue_counts()
 	//	sdata->outputs[1].request_count);
 
 	msync((void *)global.sdata, sizeof(struct shared_data), MS_SYNC);
+}
+
+static void queue_page_flip(struct modeset_out *out, struct framebuffer *fb)
+{
+	struct flip_data *priv = out->data;
+	int r;
+
+	out->pflip_pending = true;
+	priv->queued_fb = fb;
+
+	r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
+	ASSERT(r == 0);
+}
+
+static void queue_plane(struct modeset_out *out, struct framebuffer *fb)
+{
+	struct flip_data *priv = out->data;
+	int r;
+
+	int outw = fb->width * 2 / 3;
+	int outh = fb->height * 2 / 3;
+	int outx = (fb->width - outw) / 2;
+	int outy = (fb->height - outh) / 2;
+
+	r = drmModeSetPlane(out->fd, priv->plane_id, out->crtc_id,
+		fb->fb_id, 0,
+		outx, outy, outw, outh,
+		0 << 16, 0 << 16,
+		fb->width << 16, fb->height << 16);
+	ASSERT(r == 0);
+
+	out->pflip_pending = true;
+	priv->queued_fb = fb;
+
+	drmVBlank vbl;
+
+	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT;
+	vbl.request.type |= out->crtc_idx << DRM_VBLANK_HIGH_CRTC_SHIFT;
+	vbl.request.sequence = 1;
+	vbl.request.signal = (unsigned long)out;
+
+	drmWaitVBlank(global.drm_fd, &vbl);
 }
 
 static void modeset_page_flip_event(int fd, unsigned int frame,
@@ -172,17 +218,16 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 	if (TAILQ_EMPTY(&priv->fb_list_head))
 		return;
 
-	struct framebuffer *fb;
-	int r;
-
 	//printf("flip: queue new pflig: %d\n", out->output_id);
 
+	struct framebuffer *fb;
 	fb = dequeue_fb(priv);
 
-	r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
-	ASSERT(r == 0);
-	out->pflip_pending = true;
-	priv->queued_fb = fb;
+	if (use_plane) {
+		queue_plane(out, fb);
+	} else {
+		queue_page_flip(out, fb);
+	}
 
 	update_queue_counts();
 }
@@ -250,6 +295,7 @@ static void main_loop(int sfd)
 	drmEventContext ev = {
 		.version = DRM_EVENT_CONTEXT_VERSION,
 		.page_flip_handler = modeset_page_flip_event,
+		.vblank_handler = modeset_page_flip_event,
 	};
 
 	update_queue_counts();
@@ -300,10 +346,12 @@ static void main_loop(int sfd)
 
 			if (priv->queued_fb == NULL) {
 				//printf("queue pflip %d\n", out->output_id);
-				r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
-				ASSERT(r == 0);
-				out->pflip_pending = true;
-				priv->queued_fb = fb;
+
+				if (use_plane) {
+					queue_plane(out, fb);
+				} else {
+					queue_page_flip(out, fb);
+				}
 			} else {
 				enqueue_fb(priv, fb);
 			}
@@ -384,6 +432,41 @@ static void open_shared_mem()
 	global.sdata = sdata;
 }
 
+static void find_planes(int fd, struct modeset_out *modeset_list)
+{
+	drmModePlaneRes *plane_resources;
+	int cur_plane;
+
+	plane_resources = drmModeGetPlaneResources(fd);
+	ASSERT(plane_resources);
+
+	cur_plane = 0;
+
+	for_each_output(out, modeset_list) {
+		struct flip_data *pdata = out->data;
+
+		for (; cur_plane < plane_resources->count_planes; cur_plane++) {
+			drmModePlane *ovr;
+
+			ovr = drmModeGetPlane(fd, plane_resources->planes[cur_plane]);
+			ASSERT(ovr);
+
+			printf("Output %d: Plane %d\n",
+				out->output_id, ovr->plane_id);
+
+			pdata->plane_id = ovr->plane_id;
+
+			cur_plane++;
+
+			drmModeFreePlane(ovr);
+
+			break;
+		}
+	}
+
+	drmModeFreePlaneResources(plane_resources);
+}
+
 int main(int argc, char **argv)
 {
 	int r;
@@ -407,6 +490,9 @@ int main(int argc, char **argv)
 		TAILQ_INIT(&priv->fb_list_head);
 		out->data = priv;
 	}
+
+	if (use_plane)
+		find_planes(global.drm_fd, modeset_list);
 
 	// Set modes
 	modeset_set_modes(modeset_list);

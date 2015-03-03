@@ -225,6 +225,8 @@ static void create_bufs()
 {
 	volatile struct shared_data *sdata = global.sdata;
 
+	printf("Creating buffers... "); fflush(stdout);
+
 	for (int i = 0; i < sdata->num_outputs; ++i) {
 		volatile struct shared_output *output;
 
@@ -243,6 +245,8 @@ static void create_bufs()
 			drm_draw_test_pattern(fb, 0);
 		}
 	}
+
+	printf("done\n");
 }
 
 int main(int argc, char **argv)
