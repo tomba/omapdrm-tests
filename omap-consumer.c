@@ -33,6 +33,28 @@ struct flip_data {
 
 static struct modeset_out *modeset_list = NULL;
 
+static void enqueue_fb(struct flip_data *priv, struct framebuffer *fb)
+{
+	struct received_fb *rfb = malloc(sizeof(*rfb));
+	rfb->fb = fb;
+
+	TAILQ_INSERT_TAIL(&priv->fb_list_head, rfb, entries);
+}
+
+static struct framebuffer *dequeue_fb(struct flip_data *priv)
+{
+	struct received_fb *rfb;
+	struct framebuffer *fb;
+
+	rfb = TAILQ_FIRST(&priv->fb_list_head);
+	TAILQ_REMOVE(&priv->fb_list_head, priv->fb_list_head.tqh_first, entries);
+
+	fb = rfb->fb;
+	free(rfb);
+
+	return fb;
+}
+
 static int count_queued_fbs(struct flip_data *priv)
 {
 	int count = 0;
@@ -148,17 +170,12 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 	if (TAILQ_EMPTY(&priv->fb_list_head))
 		return;
 
-	struct received_fb *rfb;
 	struct framebuffer *fb;
 	int r;
 
 	//printf("flip: queue new pflig: %d\n", out->output_id);
 
-	rfb = TAILQ_FIRST(&priv->fb_list_head);
-	TAILQ_REMOVE(&priv->fb_list_head, priv->fb_list_head.tqh_first, entries);
-
-	fb = rfb->fb;
-	free(rfb);
+	fb = dequeue_fb(priv);
 
 	r = drmModePageFlip(out->fd, out->crtc_id, fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT, out);
 	ASSERT(r == 0);
@@ -286,10 +303,7 @@ static void main_loop(int sfd)
 				out->pflip_pending = true;
 				priv->queued_fb = fb;
 			} else {
-				struct received_fb *rfb = malloc(sizeof(*rfb));
-				rfb->fb = fb;
-
-				TAILQ_INSERT_TAIL(&priv->fb_list_head, rfb, entries);
+				enqueue_fb(priv, fb);
 			}
 
 			update_queue_counts();
