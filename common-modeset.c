@@ -206,7 +206,6 @@ void modeset_set_modes(struct modeset_out *list)
 			out->bufs[0].fb_id, out->bufs[1].fb_id,
 			out->mode.hdisplay, out->mode.vdisplay);
 
-		out->saved_crtc = drmModeGetCrtc(out->fd, out->crtc_id);
 		buf = &out->bufs[0];
 
 		r = drmModeSetCrtc(out->fd, out->crtc_id, buf->fb_id, 0, 0,
@@ -310,18 +309,6 @@ void modeset_cleanup(struct modeset_out *out_list)
 		/* remove from global list */
 		iter = out_list;
 		out_list = iter->next;
-
-		/* restore saved CRTC configuration */
-		if (!iter->pflip_pending)
-			drmModeSetCrtc(iter->fd,
-				       iter->saved_crtc->crtc_id,
-				       iter->saved_crtc->buffer_id,
-				       iter->saved_crtc->x,
-				       iter->saved_crtc->y,
-				       &iter->conn_id,
-				       1,
-				       &iter->saved_crtc->mode);
-		drmModeFreeCrtc(iter->saved_crtc);
 
 		/* destroy framebuffers */
 		for(i = 0; i < iter->num_buffers; i++) {
