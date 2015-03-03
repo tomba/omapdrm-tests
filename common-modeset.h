@@ -18,6 +18,7 @@ struct modeset_out {
 	uint32_t conn_id;
 	uint32_t enc_id;
 	uint32_t crtc_id;
+	uint32_t crtc_idx;
 	drmModeCrtc *saved_crtc;
 
 	bool cleanup;

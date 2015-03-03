@@ -106,6 +106,14 @@ static int modeset_setup_output(int fd, drmModeRes *res, drmModeConnector *conn,
 		return r;
 	}
 
+	/* find the index of the crtc, for drmWaitVBlank */
+	for (int i = 0; i < res->count_crtcs; ++i) {
+		if (res->crtcs[i] == out->crtc_id) {
+			out->crtc_idx = i;
+			break;
+		}
+	}
+
 	return 0;
 }
 
