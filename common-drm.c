@@ -1,6 +1,8 @@
 #include "common-drm.h"
 #include "common.h"
 
+#include <drm/drm_fourcc.h>
+
 int drm_open_dev_dumb(const char *node)
 {
 	int fd = open(node, O_RDWR | O_CLOEXEC);
@@ -24,6 +26,12 @@ void drm_destroy_dumb(int fd, uint32_t handle)
 
 void drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuffer *buf)
 {
+	drm_create_dumb_fb2(fd, width, height, DRM_FORMAT_XRGB8888, buf);
+}
+
+void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t format,
+	struct framebuffer *buf)
+{
 	int r;
 
 	memset(buf, 0, sizeof(*buf));
@@ -31,6 +39,7 @@ void drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuf
 	buf->fd = fd;
 	buf->width = width;
 	buf->height = height;
+	buf->format = format;
 
 	/* create dumb buffer */
 	struct drm_mode_create_dumb creq = {
@@ -45,8 +54,11 @@ void drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuf
 	buf->handle = creq.handle;
 
 	/* create framebuffer object for the dumb-buffer */
-	r = drmModeAddFB(fd, buf->width, buf->height, 24, 32, buf->stride,
-			   buf->handle, &buf->fb_id);
+	uint32_t bo_handles[4] = { buf->handle, };
+	uint32_t pitches[4] = { buf->stride, };
+	uint32_t offsets[4] = { 0 };
+	r = drmModeAddFB2(fd, buf->width, buf->height, format,
+		bo_handles, pitches, offsets, &buf->fb_id, 0);
 	ASSERT(r == 0);
 
 	/* prepare buffer for memory mapping */
