@@ -14,7 +14,8 @@ endif
 
 CFLAGS += -O2 -Wall -std=c99 -D_GNU_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE
 
-LDLIBS += -lrt
+LDLIBS += -lrt -pthread
+#LDFLAGS += -static
 
 all: $(PROGS)
 
