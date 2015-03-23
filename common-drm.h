@@ -17,13 +17,17 @@ struct omap_bo;
 
 struct framebuffer {
 	int fd;
+
 	uint32_t width;
 	uint32_t height;
-	uint32_t stride;
-	uint32_t size;
 	uint32_t format;
-	uint32_t handle;
-	uint8_t *map;
+
+	int num_planes;
+	uint32_t stride[2];
+	uint32_t size[2];
+	uint32_t handle[2];
+	uint8_t *map[2];
+
 	uint32_t fb_id;
 	struct omap_bo *omap_bo;
 };

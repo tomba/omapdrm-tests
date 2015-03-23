@@ -267,19 +267,21 @@ static void receive_fb(int sfd, int *output_id, struct framebuffer *fb)
 
 	ASSERT(w != 0 && h != 0);
 
-	r = drmPrimeFDToHandle(global.drm_fd, prime_fd, &fb->handle);
+	r = drmPrimeFDToHandle(global.drm_fd, prime_fd, &fb->handle[0]);
 	ASSERT(r == 0);
+
+	fb->num_planes = 1;
 
 	fb->omap_bo = omap_bo_from_dmabuf(global.omap_dev, prime_fd);
 	ASSERT(fb->omap_bo);
 
-	fb->size = omap_bo_size(fb->omap_bo);
+	fb->size[0] = omap_bo_size(fb->omap_bo);
 	fb->width = w;
 	fb->height = h;
-	fb->stride = fb->width * 32 / 8;
+	fb->stride[0] = fb->width * 32 / 8;
 
-	r = drmModeAddFB(global.drm_fd, fb->width, fb->height, 24, 32, fb->stride,
-		   fb->handle, &fb->fb_id);
+	r = drmModeAddFB(global.drm_fd, fb->width, fb->height, 24, 32, fb->stride[0],
+		   fb->handle[0], &fb->fb_id);
 	ASSERT(r == 0);
 
 	//printf("received fb handle %x, prime %d, fb %d\n", fb->handle, prime_fd, fb->fb_id);

@@ -60,10 +60,11 @@ static void create_omap_fb(int width, int height, int bpp, struct framebuffer *b
 	memset(buf, 0, sizeof(*buf));
 	buf->width = width;
 	buf->height = height;
-	buf->stride = width * bpp / 8;
-	buf->size = omap_bo_size(bo);
-	buf->handle = omap_bo_handle(bo);
-	buf->map = map;
+	buf->num_planes = 1;
+	buf->stride[0] = width * bpp / 8;
+	buf->size[0] = omap_bo_size(bo);
+	buf->handle[0] = omap_bo_handle(bo);
+	buf->map[0] = map;
 	buf->omap_bo = bo;
 }
 
@@ -96,7 +97,7 @@ static void send_fb(int cfd, int output_id, struct framebuffer *fb)
 	int r;
 	char buf[1];
 
-	r = drmPrimeHandleToFD(global.drm_fd, fb->handle, DRM_CLOEXEC, &prime_fd);
+	r = drmPrimeHandleToFD(global.drm_fd, fb->handle[0], DRM_CLOEXEC, &prime_fd);
 	ASSERT(r == 0);
 
 	buf[0] = output_id;

@@ -41,52 +41,59 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 	buf->height = height;
 	buf->format = format;
 
-	/* create dumb buffer */
-	struct drm_mode_create_dumb creq = {
-		.width = buf->width,
-		.height = buf->height,
-		.bpp = 32,
-	};
-	r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
-	ASSERT(r == 0);
-	buf->stride = creq.pitch;
-	buf->size = creq.size;
-	buf->handle = creq.handle;
+	buf->num_planes = 1;
+
+	for (int i = 0; i < buf->num_planes; ++i) {
+		/* create dumb buffer */
+		struct drm_mode_create_dumb creq = {
+			.width = buf->width,
+			.height = buf->height,
+			.bpp = 32,
+		};
+		r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
+		ASSERT(r == 0);
+
+		buf->handle[i] = creq.handle;
+		buf->stride[i] = creq.pitch;
+		buf->size[i] = buf->height * creq.pitch;
+
+		/* prepare buffer for memory mapping */
+		struct drm_mode_map_dumb mreq = {
+			.handle = buf->handle[i],
+		};
+		r = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq);
+		ASSERT(r == 0);
+
+		/* perform actual memory mapping */
+		buf->map[i] = mmap(0, buf->size[i], PROT_READ | PROT_WRITE, MAP_SHARED,
+			        fd, mreq.offset);
+		ASSERT(buf->map[i] != MAP_FAILED);
+
+		/* clear the framebuffer to 0 */
+		memset(buf->map[i], 0, buf->size[i]);
+	}
 
 	/* create framebuffer object for the dumb-buffer */
-	uint32_t bo_handles[4] = { buf->handle, };
-	uint32_t pitches[4] = { buf->stride, };
+	uint32_t bo_handles[4] = { buf->handle[0], buf->handle[1] };
+	uint32_t pitches[4] = { buf->stride[0], buf->stride[1] };
 	uint32_t offsets[4] = { 0 };
 	r = drmModeAddFB2(fd, buf->width, buf->height, format,
 		bo_handles, pitches, offsets, &buf->fb_id, 0);
 	ASSERT(r == 0);
-
-	/* prepare buffer for memory mapping */
-	struct drm_mode_map_dumb mreq = {
-		.handle = buf->handle,
-	};
-	r = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq);
-	ASSERT(r == 0);
-
-	/* perform actual memory mapping */
-	buf->map = mmap(0, buf->size, PROT_READ | PROT_WRITE, MAP_SHARED,
-		        fd, mreq.offset);
-	ASSERT(buf->map != MAP_FAILED);
-
-	/* clear the framebuffer to 0 */
-	memset(buf->map, 0, buf->size);
 }
 
 void drm_destroy_dumb_fb(struct framebuffer *buf)
 {
-	/* unmap buffer */
-	munmap(buf->map, buf->size);
-
 	/* delete framebuffer */
 	drmModeRmFB(buf->fd, buf->fb_id);
 
-	/* delete dumb buffer */
-	drm_destroy_dumb(buf->fd, buf->handle);
+	for (int i = 0; i < buf->num_planes; ++i) {
+		/* unmap buffer */
+		munmap(buf->map[i], buf->size[i]);
+
+		/* delete dumb buffer */
+		drm_destroy_dumb(buf->fd, buf->handle[i]);
+	}
 
 	memset(buf, 0, sizeof(*buf));
 }
@@ -94,7 +101,7 @@ void drm_destroy_dumb_fb(struct framebuffer *buf)
 void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
 {
 	uint32_t *p;
-	p = (uint32_t*)(buf->map + buf->stride * y + x * 4);
+	p = (uint32_t*)(buf->map[0] + buf->stride[0] * y + x * 4);
 	*p = color;
 }
 
@@ -268,7 +275,8 @@ void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
 
 void drm_clear_fb(struct framebuffer *fb)
 {
-	memset(fb->map, 0, fb->size);
+	for (int i = 0; i < fb->num_planes; ++i)
+		memset(fb->map[i], 0, fb->size[i]);
 }
 
 void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int width)
@@ -291,7 +299,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int wid
 
 	for (unsigned y = 0; y < buf->height; ++y) {
 		unsigned int bcol = colors32[y * sizeof(colors32) / 4 / buf->height];
-		uint32_t *line = (uint32_t*)(buf->map + buf->stride * y);
+		uint32_t *line = (uint32_t*)(buf->map[0] + buf->stride[0] * y);
 
 		if (old_xpos >= 0) {
 			for (unsigned x = old_xpos; x < old_xpos + width; ++x)
