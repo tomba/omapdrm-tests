@@ -41,14 +41,39 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 	buf->height = height;
 	buf->format = format;
 
-	buf->num_planes = 1;
+	unsigned bpps[2];
+
+	switch (format) {
+		case DRM_FORMAT_NV12:
+		case DRM_FORMAT_NV21:
+			buf->num_planes = 2;
+			// XXX these work but do not sound correct
+			// bpps[1] should be 4?
+			bpps[0] = 8;
+			bpps[1] = 8;
+			break;
+
+		case DRM_FORMAT_YUYV:
+		case DRM_FORMAT_UYVY:
+			buf->num_planes = 1;
+			bpps[0] = 16;
+			break;
+
+		case DRM_FORMAT_XRGB8888:
+			buf->num_planes = 1;
+			bpps[0] = 32;
+			break;
+
+		default:
+			ASSERT(false);
+	}
 
 	for (int i = 0; i < buf->num_planes; ++i) {
 		/* create dumb buffer */
 		struct drm_mode_create_dumb creq = {
 			.width = buf->width,
 			.height = buf->height,
-			.bpp = 32,
+			.bpp = bpps[i],
 		};
 		r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
 		ASSERT(r == 0);
@@ -257,7 +282,156 @@ static void fill_smpte_rgb32(struct framebuffer *fb)
 	}
 }
 
-void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
+#define MAKE_YUV_601_Y(r, g, b) \
+	((( 66 * (r) + 129 * (g) +  25 * (b) + 128) >> 8) + 16)
+#define MAKE_YUV_601_U(r, g, b) \
+	(((-38 * (r) -  74 * (g) + 112 * (b) + 128) >> 8) + 128)
+#define MAKE_YUV_601_V(r, g, b) \
+	(((112 * (r) -  94 * (g) -  18 * (b) + 128) >> 8) + 128)
+
+struct color
+{
+	union {
+		struct {
+			uint8_t r;
+			uint8_t g;
+			uint8_t b;
+			uint8_t __unused1;
+		};
+		struct {
+			uint8_t y;
+			uint8_t u;
+			uint8_t v;
+			uint8_t __unused2;
+		};
+	};
+};
+
+static struct color rgb_to_yuv_pixel(struct color rgb)
+{
+	unsigned r = rgb.r;
+	unsigned g = rgb.g;
+	unsigned b = rgb.b;
+
+	struct color color = {
+		.y = MAKE_YUV_601_Y(r, g, b),
+		.u = MAKE_YUV_601_U(r, g, b),
+		.v = MAKE_YUV_601_V(r, g, b),
+	};
+
+	return color;
+}
+
+static struct color read_rgb(struct framebuffer *fb, int x, int y)
+{
+	uint32_t *pc = (uint32_t *)(fb->map[0] + fb->stride[0] * y);
+
+	uint32_t c = pc[x];
+
+	struct color color = {
+		.r = (c >> 16) & 0xff,
+		.g = (c >> 8) & 0xff,
+		.b = c & 0xff,
+	};
+
+	return color;
+}
+
+static struct color read_rgb_as_yuv(struct framebuffer *fb, int x, int y)
+{
+	struct color rgb = read_rgb(fb, x, y);
+	return rgb_to_yuv_pixel(rgb);
+}
+
+static void rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+{
+	unsigned w = src_fb->width;
+	unsigned h = src_fb->height;
+
+	uint8_t *dst = dst_fb->map[0];
+
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; x += 2) {
+			struct color yuv1 = read_rgb_as_yuv(src_fb, x + 0, y);
+			struct color yuv2 = read_rgb_as_yuv(src_fb, x + 1, y);
+
+			switch (dst_fb->format) {
+				case DRM_FORMAT_UYVY:
+					dst[x * 2 + 0] = (yuv1.u + yuv2.u) / 2;
+					dst[x * 2 + 1] = yuv1.y;
+					dst[x * 2 + 2] = (yuv1.v + yuv2.v) / 2;
+					dst[x * 2 + 3] = yuv2.y;
+					break;
+				case DRM_FORMAT_YUYV:
+					dst[x * 2 + 0] = yuv1.y;
+					dst[x * 2 + 1] = (yuv1.u + yuv2.u) / 2;
+					dst[x * 2 + 2] = yuv2.y;
+					dst[x * 2 + 3] = (yuv1.v + yuv2.v) / 2;
+					break;
+
+				default:
+					ASSERT(false);
+			}
+		}
+
+		dst += dst_fb->stride[0];
+	}
+}
+
+static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+{
+	unsigned w = src_fb->width;
+	unsigned h = src_fb->height;
+
+	uint8_t *dst_y = dst_fb->map[0];
+	uint8_t *dst_uv = dst_fb->map[1];
+
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			struct color yuv = read_rgb_as_yuv(src_fb, x, y);
+			dst_y[x] = yuv.y;
+		}
+
+		dst_y += dst_fb->stride[0];
+	}
+
+	for (int y = 0; y < h; y += 2) {
+		for (int x = 0; x < w; x += 2) {
+			struct color yuv00 = read_rgb_as_yuv(src_fb, x + 0, y + 0);
+			struct color yuv01 = read_rgb_as_yuv(src_fb, x + 1, y + 0);
+			struct color yuv10 = read_rgb_as_yuv(src_fb, x + 0, y + 1);
+			struct color yuv11 = read_rgb_as_yuv(src_fb, x + 1, y + 1);
+
+			unsigned u = (yuv00.u + yuv01.u + yuv10.u + yuv11.u) / 4;
+			unsigned v = (yuv00.v + yuv01.v + yuv10.v + yuv11.v) / 4;
+
+			dst_uv[x + 0] = u;
+			dst_uv[x + 1] = v;
+		}
+
+		dst_uv += dst_fb->stride[1];
+	}
+}
+
+static void color_convert_fb(struct framebuffer *dst, struct framebuffer *src)
+{
+	switch (dst->format) {
+		case DRM_FORMAT_NV12:
+		case DRM_FORMAT_NV21:
+			rgb_to_semiplanar_yuv(dst, src);
+			break;
+
+		case DRM_FORMAT_YUYV:
+		case DRM_FORMAT_UYVY:
+			rgb_to_packed_yuv(dst, src);
+			break;
+
+		default:
+			ASSERT(false);
+	}
+}
+
+static void draw_rgb_test_pattern(struct framebuffer *fb, int pattern)
 {
 	switch (pattern) {
 	case 0:
@@ -271,6 +445,36 @@ void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
 		drm_draw_test_pattern_edges(fb);
 		break;
 	}
+}
+
+void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
+{
+	if (fb->format == DRM_FORMAT_XRGB8888) {
+		draw_rgb_test_pattern(fb, pattern);
+		return;
+	}
+
+	/* draw and convert */
+
+	struct framebuffer *orig_fb = fb;
+
+	struct framebuffer new_fb = {
+		.width = fb->width,
+		.height = fb->height,
+		.format = DRM_FORMAT_XRGB8888,
+		.stride[0] = fb->width * 4,
+		.size[0] = fb->width * 4 * fb->height,
+	};
+
+	fb = &new_fb;
+	size_t size = fb->stride[0] * fb->height;
+	fb->map[0] = malloc(size);
+
+	draw_rgb_test_pattern(fb, pattern);
+
+	color_convert_fb(orig_fb, fb);
+
+	free(fb->map[0]);
 }
 
 void drm_clear_fb(struct framebuffer *fb)
