@@ -187,39 +187,39 @@ static void drm_draw_test_pattern_edges(struct framebuffer *fb)
 	}
 }
 
-#define MAKE_RGBA(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
+#define MAKE_RGB(r, g, b) ((r << 16) | (g << 8) | (b << 0))
 
 static void fill_smpte_rgb32(struct framebuffer *fb)
 {
 	const uint32_t colors_top[] = {
-		MAKE_RGBA(192, 192, 192, 255),	/* grey */
-		MAKE_RGBA(192, 192, 0, 255),	/* yellow */
-		MAKE_RGBA(0, 192, 192, 255),	/* cyan */
-		MAKE_RGBA(0, 192, 0, 255),	/* green */
-		MAKE_RGBA(192, 0, 192, 255),	/* magenta */
-		MAKE_RGBA(192, 0, 0, 255),	/* red */
-		MAKE_RGBA(0, 0, 192, 255),	/* blue */
+		MAKE_RGB(192, 192, 192),/* grey */
+		MAKE_RGB(192, 192, 0),	/* yellow */
+		MAKE_RGB(0, 192, 192),	/* cyan */
+		MAKE_RGB(0, 192, 0),	/* green */
+		MAKE_RGB(192, 0, 192),	/* magenta */
+		MAKE_RGB(192, 0, 0),	/* red */
+		MAKE_RGB(0, 0, 192),	/* blue */
 	};
 
 	const uint32_t colors_middle[] = {
-		MAKE_RGBA(0, 0, 192, 255),	/* blue */
-		MAKE_RGBA(19, 19, 19, 255),	/* black */
-		MAKE_RGBA(192, 0, 192, 255),	/* magenta */
-		MAKE_RGBA(19, 19, 19, 255),	/* black */
-		MAKE_RGBA(0, 192, 192, 255),	/* cyan */
-		MAKE_RGBA(19, 19, 19, 255),	/* black */
-		MAKE_RGBA(192, 192, 192, 255),	/* grey */
+		MAKE_RGB(0, 0, 192),	/* blue */
+		MAKE_RGB(19, 19, 19),	/* black */
+		MAKE_RGB(192, 0, 192),	/* magenta */
+		MAKE_RGB(19, 19, 19),	/* black */
+		MAKE_RGB(0, 192, 192),	/* cyan */
+		MAKE_RGB(19, 19, 19),	/* black */
+		MAKE_RGB(192, 192, 192),/* grey */
 	};
 
 	const uint32_t colors_bottom[] = {
-		MAKE_RGBA(0, 33, 76, 255),	/* in-phase */
-		MAKE_RGBA(255, 255, 255, 255),	/* super white */
-		MAKE_RGBA(50, 0, 106, 255),	/* quadrature */
-		MAKE_RGBA(19, 19, 19, 255),	/* black */
-		MAKE_RGBA(9, 9, 9, 255),	/* 3.5% */
-		MAKE_RGBA(19, 19, 19, 255),	/* 7.5% */
-		MAKE_RGBA(29, 29, 29, 255),	/* 11.5% */
-		MAKE_RGBA(19, 19, 19, 255),	/* black */
+		MAKE_RGB(0, 33, 76),	/* in-phase */
+		MAKE_RGB(255, 255, 255),/* super white */
+		MAKE_RGB(50, 0, 106),	/* quadrature */
+		MAKE_RGB(19, 19, 19),	/* black */
+		MAKE_RGB(9, 9, 9),	/* 3.5% */
+		MAKE_RGB(19, 19, 19),	/* 7.5% */
+		MAKE_RGB(29, 29, 29),	/* 11.5% */
+		MAKE_RGB(19, 19, 19),	/* black */
 	};
 
 	unsigned width = fb->width;
