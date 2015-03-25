@@ -284,57 +284,55 @@ static void fill_smpte_rgb32(struct framebuffer *fb)
 	}
 }
 
-struct color
+struct rgb
 {
-	union {
-		struct {
-			uint8_t r;
-			uint8_t g;
-			uint8_t b;
-			uint8_t __unused1;
-		};
-		struct {
-			uint8_t y;
-			uint8_t u;
-			uint8_t v;
-			uint8_t __unused2;
-		};
-	};
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t __unused1;
 };
 
-static struct color rgb_to_yuv_pixel(struct color rgb)
+struct yuv
+{
+	uint8_t y;
+	uint8_t u;
+	uint8_t v;
+	uint8_t __unused2;
+};
+
+static struct yuv rgb_to_yuv_pixel(struct rgb rgb)
 {
 	unsigned r = rgb.r;
 	unsigned g = rgb.g;
 	unsigned b = rgb.b;
 
-	struct color color = {
+	struct yuv yuv = {
 		.y = MAKE_YUV_601_Y(r, g, b),
 		.u = MAKE_YUV_601_U(r, g, b),
 		.v = MAKE_YUV_601_V(r, g, b),
 	};
 
-	return color;
+	return yuv;
 }
 
-static struct color read_rgb(struct framebuffer *fb, int x, int y)
+static struct rgb read_rgb(struct framebuffer *fb, int x, int y)
 {
 	uint32_t *pc = (uint32_t *)(fb->map[0] + fb->stride[0] * y);
 
 	uint32_t c = pc[x];
 
-	struct color color = {
+	struct rgb rgb = {
 		.r = (c >> 16) & 0xff,
 		.g = (c >> 8) & 0xff,
 		.b = c & 0xff,
 	};
 
-	return color;
+	return rgb;
 }
 
-static struct color read_rgb_as_yuv(struct framebuffer *fb, int x, int y)
+static struct yuv read_rgb_as_yuv(struct framebuffer *fb, int x, int y)
 {
-	struct color rgb = read_rgb(fb, x, y);
+	struct rgb rgb = read_rgb(fb, x, y);
 	return rgb_to_yuv_pixel(rgb);
 }
 
@@ -347,8 +345,8 @@ static void rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer *sr
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; x += 2) {
-			struct color yuv1 = read_rgb_as_yuv(src_fb, x + 0, y);
-			struct color yuv2 = read_rgb_as_yuv(src_fb, x + 1, y);
+			struct yuv yuv1 = read_rgb_as_yuv(src_fb, x + 0, y);
+			struct yuv yuv2 = read_rgb_as_yuv(src_fb, x + 1, y);
 
 			switch (dst_fb->format) {
 				case DRM_FORMAT_UYVY:
@@ -383,7 +381,7 @@ static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; ++x) {
-			struct color yuv = read_rgb_as_yuv(src_fb, x, y);
+			struct yuv yuv = read_rgb_as_yuv(src_fb, x, y);
 			dst_y[x] = yuv.y;
 		}
 
@@ -392,10 +390,10 @@ static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer
 
 	for (int y = 0; y < h; y += 2) {
 		for (int x = 0; x < w; x += 2) {
-			struct color yuv00 = read_rgb_as_yuv(src_fb, x + 0, y + 0);
-			struct color yuv01 = read_rgb_as_yuv(src_fb, x + 1, y + 0);
-			struct color yuv10 = read_rgb_as_yuv(src_fb, x + 0, y + 1);
-			struct color yuv11 = read_rgb_as_yuv(src_fb, x + 1, y + 1);
+			struct yuv yuv00 = read_rgb_as_yuv(src_fb, x + 0, y + 0);
+			struct yuv yuv01 = read_rgb_as_yuv(src_fb, x + 1, y + 0);
+			struct yuv yuv10 = read_rgb_as_yuv(src_fb, x + 0, y + 1);
+			struct yuv yuv11 = read_rgb_as_yuv(src_fb, x + 1, y + 1);
 
 			unsigned u = (yuv00.u + yuv01.u + yuv10.u + yuv11.u) / 4;
 			unsigned v = (yuv00.v + yuv01.v + yuv10.v + yuv11.v) / 4;
@@ -417,7 +415,7 @@ static void rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src_fb
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; ++x) {
-			struct color rgb = read_rgb(src_fb, x, y);
+			struct rgb rgb = read_rgb(src_fb, x, y);
 
 			unsigned r = rgb.r * 32 / 256;
 			unsigned g = rgb.g * 64 / 256;
