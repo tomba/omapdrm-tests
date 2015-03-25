@@ -152,33 +152,33 @@ static void drm_draw_test_pattern_default(struct framebuffer *fb)
 		for (x = 0; x < w; x++) {
 			// white margin lines
 			if (x == xm1 || x == xm2 || y == ym1 || y == ym2)
-				draw_pixel(fb, x, y, 0xffffff);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 			// white box outlines to corners
 			else if ((x == 0 || x == w - 1) && (y < ym1 || y > ym2))
-				draw_pixel(fb, x, y, 0xffffff);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 			// white box outlines to corners
 			else if ((y == 0 || y == h - 1) && (x < xm1 || x > xm2))
-				draw_pixel(fb, x, y, 0xffffff);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 			// blue bar on the left
 			else if (x < xm1 && (y > ym1 && y < ym2))
-				draw_pixel(fb, x, y, 0xff);
+				draw_pixel(fb, x, y, MAKE_RGB(0, 0, 255));
 			// blue bar on the top
 			else if (y < ym1 && (x > xm1 && x < xm2))
-				draw_pixel(fb, x, y, 0xff);
+				draw_pixel(fb, x, y, MAKE_RGB(0, 0, 255));
 			// red bar on the right
 			else if (x > xm2 && (y > ym1 && y < ym2))
-				draw_pixel(fb, x, y, 0xff0000);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 0, 0));
 			// red bar on the bottom
 			else if (y > ym2 && (x > xm1 && x < xm2))
-				draw_pixel(fb, x, y, 0xff0000);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 0, 0));
 			// inside the margins
 			else if (x > xm1 && x < xm2 && y > ym1 && y < ym2) {
 				// diagonal line
 				if (x == y || w - x == h - y)
-					draw_pixel(fb, x, y, 0xffffff);
+					draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 				// diagonal line
 				else if (w - x == y || x == h - y)
-					draw_pixel(fb, x, y, 0xffffff);
+					draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 				else {
 					int t = (x - xm1 - 1) * 3 / (xm2 - xm1 - 1);
 					unsigned r = 0, g = 0, b = 0;
@@ -197,8 +197,7 @@ static void drm_draw_test_pattern_default(struct framebuffer *fb)
 						break;
 					}
 
-					draw_pixel(fb, x, y,
-						(r << 16) | (g << 8) | (b << 0));
+					draw_pixel(fb, x, y, MAKE_RGB(r, g, b));
 				}
 			// black corners
 			} else {
@@ -217,14 +216,12 @@ static void drm_draw_test_pattern_edges(struct framebuffer *fb)
 	for (y = 0; y < h; y++) {
 		for (x = 0; x < w; x++) {
 			if (x == 0 || y == 0 || x == w - 1 || y == h - 1)
-				draw_pixel(fb, x, y, 0xffffff);
+				draw_pixel(fb, x, y, MAKE_RGB(255, 255, 255));
 			else
-				draw_pixel(fb, x, y, 0x0);
+				draw_pixel(fb, x, y, 0);
 		}
 	}
 }
-
-#define MAKE_RGB(r, g, b) ((r << 16) | (g << 8) | (b << 0))
 
 static void fill_smpte_rgb32(struct framebuffer *fb)
 {
@@ -286,13 +283,6 @@ static void fill_smpte_rgb32(struct framebuffer *fb)
 			draw_pixel(fb, x, y, colors_bottom[7]);
 	}
 }
-
-#define MAKE_YUV_601_Y(r, g, b) \
-	((( 66 * (r) + 129 * (g) +  25 * (b) + 128) >> 8) + 16)
-#define MAKE_YUV_601_U(r, g, b) \
-	(((-38 * (r) -  74 * (g) + 112 * (b) + 128) >> 8) + 128)
-#define MAKE_YUV_601_V(r, g, b) \
-	(((112 * (r) -  94 * (g) -  18 * (b) + 128) >> 8) + 128)
 
 struct color
 {
