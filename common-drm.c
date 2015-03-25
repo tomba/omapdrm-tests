@@ -64,6 +64,11 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 			bpps[0] = 32;
 			break;
 
+		case DRM_FORMAT_RGB565:
+			buf->num_planes = 1;
+			bpps[0] = 16;
+			break;
+
 		default:
 			ASSERT(false);
 	}
@@ -413,6 +418,28 @@ static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer
 	}
 }
 
+static void rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+{
+	unsigned w = src_fb->width;
+	unsigned h = src_fb->height;
+
+	uint8_t *dst = dst_fb->map[0];
+
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			struct color rgb = read_rgb(src_fb, x, y);
+
+			unsigned r = rgb.r * 32 / 256;
+			unsigned g = rgb.g * 64 / 256;
+			unsigned b = rgb.b * 32 / 256;
+
+			((uint16_t *)dst)[x] = (r << 11) | (g << 5) | (b << 0);
+		}
+
+		dst += dst_fb->stride[0];
+	}
+}
+
 static void color_convert_fb(struct framebuffer *dst, struct framebuffer *src)
 {
 	switch (dst->format) {
@@ -424,6 +451,10 @@ static void color_convert_fb(struct framebuffer *dst, struct framebuffer *src)
 		case DRM_FORMAT_YUYV:
 		case DRM_FORMAT_UYVY:
 			rgb_to_packed_yuv(dst, src);
+			break;
+
+		case DRM_FORMAT_RGB565:
+			rgb_to_rgb565(dst, src);
 			break;
 
 		default:
