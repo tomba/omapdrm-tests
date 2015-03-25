@@ -212,7 +212,7 @@ static void fill_smpte_rgb32(struct framebuffer *fb)
 	}
 }
 
-static void rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+static void fb_rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
 {
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
@@ -247,7 +247,7 @@ static void rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer *sr
 	}
 }
 
-static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+static void fb_rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer *src_fb)
 {
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
@@ -282,7 +282,7 @@ static void rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuffer
 	}
 }
 
-static void rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src_fb)
+static void fb_rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src_fb)
 {
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
@@ -304,21 +304,21 @@ static void rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src_fb
 	}
 }
 
-static void color_convert_fb(struct framebuffer *dst, struct framebuffer *src)
+static void fb_color_convert(struct framebuffer *dst, struct framebuffer *src)
 {
 	switch (dst->format) {
 		case DRM_FORMAT_NV12:
 		case DRM_FORMAT_NV21:
-			rgb_to_semiplanar_yuv(dst, src);
+			fb_rgb_to_semiplanar_yuv(dst, src);
 			break;
 
 		case DRM_FORMAT_YUYV:
 		case DRM_FORMAT_UYVY:
-			rgb_to_packed_yuv(dst, src);
+			fb_rgb_to_packed_yuv(dst, src);
 			break;
 
 		case DRM_FORMAT_RGB565:
-			rgb_to_rgb565(dst, src);
+			fb_rgb_to_rgb565(dst, src);
 			break;
 
 		default:
@@ -367,7 +367,7 @@ void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
 
 	draw_rgb_test_pattern(fb, pattern);
 
-	color_convert_fb(orig_fb, fb);
+	fb_color_convert(orig_fb, fb);
 
 	free(fb->map[0]);
 }
