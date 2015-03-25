@@ -19,7 +19,7 @@ LDLIBS += -lrt -pthread
 
 all: $(PROGS)
 
-$(PROGS): % : %.c common.o common-drm.o common-modeset.o
+$(PROGS): % : %.c common.o common-drm.o common-modeset.o common-drawing.o
 	@echo "  [LD] $@"
 	@$(LINK.c) $^ $(LDLIBS) -o $@
 

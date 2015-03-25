@@ -4,5 +4,6 @@
 #include "common.h"
 #include "common-drm.h"
 #include "common-modeset.h"
+#include "common-drawing.h"
 
 #endif
