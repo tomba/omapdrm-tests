@@ -14,6 +14,8 @@
 #define ASSERT(x) if (unlikely(!(x))) \
 	{ perror("assert(" __FILE__ ":" TOSTRING(__LINE__) "): "); exit(1); }
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 /* common.c */
 void get_time_now(struct timespec *ts);
 uint64_t get_time_elapsed_us(const struct timespec *ts_start, const struct timespec *ts_end);
