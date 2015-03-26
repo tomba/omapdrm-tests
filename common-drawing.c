@@ -7,7 +7,7 @@
 void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
 {
 	uint32_t *p;
-	p = (uint32_t*)(buf->map[0] + buf->stride[0] * y + x * 4);
+	p = (uint32_t*)(buf->planes[0].map + buf->planes[0].stride * y + x * 4);
 	*p = color;
 }
 
@@ -44,7 +44,7 @@ static struct yuv rgb_to_yuv_pixel(struct rgb rgb)
 
 static struct rgb read_rgb(struct framebuffer *fb, int x, int y)
 {
-	uint32_t *pc = (uint32_t *)(fb->map[0] + fb->stride[0] * y);
+	uint32_t *pc = (uint32_t *)(fb->planes[0].map + fb->planes[0].stride * y);
 
 	uint32_t c = pc[x];
 
@@ -217,7 +217,7 @@ static void fb_rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer 
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
 
-	uint8_t *dst = dst_fb->map[0];
+	uint8_t *dst = dst_fb->planes[0].map;
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; x += 2) {
@@ -243,7 +243,7 @@ static void fb_rgb_to_packed_yuv(struct framebuffer *dst_fb, struct framebuffer 
 			}
 		}
 
-		dst += dst_fb->stride[0];
+		dst += dst_fb->planes[0].stride;
 	}
 }
 
@@ -252,8 +252,8 @@ static void fb_rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuf
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
 
-	uint8_t *dst_y = dst_fb->map[0];
-	uint8_t *dst_uv = dst_fb->map[1];
+	uint8_t *dst_y = dst_fb->planes[0].map;
+	uint8_t *dst_uv = dst_fb->planes[1].map;
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; ++x) {
@@ -261,7 +261,7 @@ static void fb_rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuf
 			dst_y[x] = yuv.y;
 		}
 
-		dst_y += dst_fb->stride[0];
+		dst_y += dst_fb->planes[0].stride;
 	}
 
 	for (int y = 0; y < h; y += 2) {
@@ -278,7 +278,7 @@ static void fb_rgb_to_semiplanar_yuv(struct framebuffer *dst_fb, struct framebuf
 			dst_uv[x + 1] = v;
 		}
 
-		dst_uv += dst_fb->stride[1];
+		dst_uv += dst_fb->planes[1].stride;
 	}
 }
 
@@ -287,7 +287,7 @@ static void fb_rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src
 	unsigned w = src_fb->width;
 	unsigned h = src_fb->height;
 
-	uint8_t *dst = dst_fb->map[0];
+	uint8_t *dst = dst_fb->planes[0].map;
 
 	for (int y = 0; y < h; ++y) {
 		for (int x = 0; x < w; ++x) {
@@ -300,7 +300,7 @@ static void fb_rgb_to_rgb565(struct framebuffer *dst_fb, struct framebuffer *src
 			((uint16_t *)dst)[x] = (r << 11) | (g << 5) | (b << 0);
 		}
 
-		dst += dst_fb->stride[0];
+		dst += dst_fb->planes[0].stride;
 	}
 }
 
@@ -357,25 +357,28 @@ void drm_draw_test_pattern(struct framebuffer *fb, int pattern)
 		.width = fb->width,
 		.height = fb->height,
 		.format = DRM_FORMAT_XRGB8888,
-		.stride[0] = fb->width * 4,
-		.size[0] = fb->width * 4 * fb->height,
+		.num_planes = 1,
+		.planes[0] = {
+			.stride = fb->width * 4,
+			.size = fb->width * 4 * fb->height,
+		},
 	};
 
 	fb = &new_fb;
-	size_t size = fb->stride[0] * fb->height;
-	fb->map[0] = malloc(size);
+	size_t size = fb->planes[0].stride * fb->height;
+	fb->planes[0].map = malloc(size);
 
 	draw_rgb_test_pattern(fb, pattern);
 
 	fb_color_convert(orig_fb, fb);
 
-	free(fb->map[0]);
+	free(fb->planes[0].map);
 }
 
 void drm_clear_fb(struct framebuffer *fb)
 {
 	for (int i = 0; i < fb->num_planes; ++i)
-		memset(fb->map[i], 0, fb->size[i]);
+		memset(fb->planes[i].map, 0, fb->planes[i].size);
 }
 
 void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int width)
@@ -398,7 +401,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int wid
 
 	for (unsigned y = 0; y < buf->height; ++y) {
 		unsigned int bcol = colors32[y * sizeof(colors32) / 4 / buf->height];
-		uint32_t *line = (uint32_t*)(buf->map[0] + buf->stride[0] * y);
+		uint32_t *line = (uint32_t*)(buf->planes[0].map + buf->planes[0].stride * y);
 
 		if (old_xpos >= 0) {
 			for (unsigned x = old_xpos; x < old_xpos + width; ++x)

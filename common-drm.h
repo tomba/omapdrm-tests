@@ -15,6 +15,13 @@
 
 struct omap_bo;
 
+struct framebuffer_plane {
+	uint32_t handle;
+	uint32_t size;
+	uint32_t stride;
+	uint8_t *map;
+};
+
 struct framebuffer {
 	int fd;
 
@@ -23,10 +30,7 @@ struct framebuffer {
 	uint32_t format;
 
 	int num_planes;
-	uint32_t stride[2];
-	uint32_t size[2];
-	uint32_t handle[2];
-	uint8_t *map[2];
+	struct framebuffer_plane planes[4];
 
 	uint32_t fb_id;
 	struct omap_bo *omap_bo;

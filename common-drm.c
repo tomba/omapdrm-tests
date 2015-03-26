@@ -86,6 +86,7 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 
 	for (int i = 0; i < format_info->num_planes; ++i) {
 		const struct format_plane_info *pi = &format_info->planes[i];
+		struct framebuffer_plane *plane = &buf->planes[i];
 
 		/* create dumb buffer */
 		struct drm_mode_create_dumb creq = {
@@ -96,9 +97,9 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 		r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
 		ASSERT(r == 0);
 
-		buf->handle[i] = creq.handle;
-		buf->stride[i] = creq.pitch;
-		buf->size[i] = creq.height * creq.pitch;
+		plane->handle = creq.handle;
+		plane->stride = creq.pitch;
+		plane->size = creq.height * creq.pitch;
 
 		/*
 		printf("buf %d: %dx%d, bitspp %d, stride %d, size %d\n",
@@ -107,23 +108,23 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 
 		/* prepare buffer for memory mapping */
 		struct drm_mode_map_dumb mreq = {
-			.handle = buf->handle[i],
+			.handle = plane->handle,
 		};
 		r = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq);
 		ASSERT(r == 0);
 
 		/* perform actual memory mapping */
-		buf->map[i] = mmap(0, buf->size[i], PROT_READ | PROT_WRITE, MAP_SHARED,
+		buf->planes[i].map = mmap(0, plane->size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			        fd, mreq.offset);
-		ASSERT(buf->map[i] != MAP_FAILED);
+		ASSERT(plane->map != MAP_FAILED);
 
 		/* clear the framebuffer to 0 */
-		memset(buf->map[i], 0, buf->size[i]);
+		memset(plane->map, 0, plane->size);
 	}
 
 	/* create framebuffer object for the dumb-buffer */
-	uint32_t bo_handles[4] = { buf->handle[0], buf->handle[1] };
-	uint32_t pitches[4] = { buf->stride[0], buf->stride[1] };
+	uint32_t bo_handles[4] = { buf->planes[0].handle, buf->planes[1].handle };
+	uint32_t pitches[4] = { buf->planes[0].stride, buf->planes[1].stride };
 	uint32_t offsets[4] = { 0 };
 	r = drmModeAddFB2(fd, buf->width, buf->height, format,
 		bo_handles, pitches, offsets, &buf->fb_id, 0);
@@ -136,11 +137,13 @@ void drm_destroy_dumb_fb(struct framebuffer *buf)
 	drmModeRmFB(buf->fd, buf->fb_id);
 
 	for (int i = 0; i < buf->num_planes; ++i) {
+		struct framebuffer_plane *plane = &buf->planes[i];
+
 		/* unmap buffer */
-		munmap(buf->map[i], buf->size[i]);
+		munmap(plane->map, plane->size);
 
 		/* delete dumb buffer */
-		drm_destroy_dumb(buf->fd, buf->handle[i]);
+		drm_destroy_dumb(buf->fd, plane->handle);
 	}
 
 	memset(buf, 0, sizeof(*buf));
