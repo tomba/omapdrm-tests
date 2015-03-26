@@ -29,6 +29,43 @@ void drm_create_dumb_fb(int fd, uint32_t width, uint32_t height, struct framebuf
 	drm_create_dumb_fb2(fd, width, height, DRM_FORMAT_XRGB8888, buf);
 }
 
+struct format_plane_info
+{
+	uint8_t bitspp;	/* bits per (macro) pixel */
+	uint8_t xsub;
+	uint8_t ysub;
+};
+
+struct format_info
+{
+	uint32_t format;
+	const char *fourcc;
+	uint8_t num_planes;
+	struct format_plane_info planes[4];
+};
+
+static const struct format_info format_info_array[] = {
+	/* YUV packed */
+	{ DRM_FORMAT_UYVY, "UYVY", 1, { { 32, 2, 1 } }, },
+	{ DRM_FORMAT_YUYV, "YUYV", 1, { { 32, 2, 1 } }, },
+	/* YUV semi-planar */
+	{ DRM_FORMAT_NV12, "NV12", 2, { { 8, 1, 1, }, { 16, 2, 2 } }, },
+	/* RGB16 */
+	{ DRM_FORMAT_RGB565, "RG16", 1, { { 16, 1, 1 } }, },
+	/* RGB32 */
+	{ DRM_FORMAT_XRGB8888, "XR24", 1, { { 32, 1, 1 } }, },
+};
+
+static const struct format_info *find_format(uint32_t format)
+{
+	for (int i = 0; i < ARRAY_SIZE(format_info_array); ++i) {
+		if (format == format_info_array[i].format)
+			return &format_info_array[i];
+	}
+
+	return NULL;
+}
+
 void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t format,
 	struct framebuffer *buf)
 {
@@ -41,51 +78,32 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 	buf->height = height;
 	buf->format = format;
 
-	unsigned bpps[2];
+	const struct format_info *format_info = find_format(format);
 
-	switch (format) {
-		case DRM_FORMAT_NV12:
-		case DRM_FORMAT_NV21:
-			buf->num_planes = 2;
-			// XXX these work but do not sound correct
-			// bpps[1] should be 4?
-			bpps[0] = 8;
-			bpps[1] = 8;
-			break;
+	ASSERT(format_info);
 
-		case DRM_FORMAT_YUYV:
-		case DRM_FORMAT_UYVY:
-			buf->num_planes = 1;
-			bpps[0] = 16;
-			break;
+	buf->num_planes = format_info->num_planes;
 
-		case DRM_FORMAT_XRGB8888:
-			buf->num_planes = 1;
-			bpps[0] = 32;
-			break;
+	for (int i = 0; i < format_info->num_planes; ++i) {
+		const struct format_plane_info *pi = &format_info->planes[i];
 
-		case DRM_FORMAT_RGB565:
-			buf->num_planes = 1;
-			bpps[0] = 16;
-			break;
-
-		default:
-			ASSERT(false);
-	}
-
-	for (int i = 0; i < buf->num_planes; ++i) {
 		/* create dumb buffer */
 		struct drm_mode_create_dumb creq = {
-			.width = buf->width,
-			.height = buf->height,
-			.bpp = bpps[i],
+			.width = buf->width / pi->xsub,
+			.height = buf->height / pi->ysub,
+			.bpp = pi->bitspp,
 		};
 		r = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
 		ASSERT(r == 0);
 
 		buf->handle[i] = creq.handle;
 		buf->stride[i] = creq.pitch;
-		buf->size[i] = buf->height * creq.pitch;
+		buf->size[i] = creq.height * creq.pitch;
+
+		/*
+		printf("buf %d: %dx%d, bitspp %d, stride %d, size %d\n",
+			i, creq.width, creq.height, pi->bitspp, buf->stride[i], buf->size[i]);
+		*/
 
 		/* prepare buffer for memory mapping */
 		struct drm_mode_map_dumb mreq = {
