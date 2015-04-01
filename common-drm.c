@@ -103,7 +103,7 @@ void drm_create_dumb_fb2(int fd, uint32_t width, uint32_t height, uint32_t forma
 
 		/*
 		printf("buf %d: %dx%d, bitspp %d, stride %d, size %d\n",
-			i, creq.width, creq.height, pi->bitspp, buf->stride[i], buf->size[i]);
+			i, creq.width, creq.height, pi->bitspp, plane->stride, plane->size);
 		*/
 
 		/* prepare buffer for memory mapping */
