@@ -1,5 +1,6 @@
 
 #include "test.h"
+#include <drm/drm_fourcc.h>
 
 static struct modeset_out *modeset_list = NULL;
 
@@ -76,8 +77,9 @@ int main(int argc, char **argv)
 	for_each_output(out, modeset_list) {
 		struct flip_data *pdata = out->data;
 
-		drm_create_dumb_fb(out->fd,
+		drm_create_dumb_fb2(out->fd,
 			out->mode.hdisplay, out->mode.vdisplay,
+			DRM_FORMAT_NV12,
 			&pdata->plane_buf);
 
 		drm_draw_test_pattern(&pdata->plane_buf, 0);
