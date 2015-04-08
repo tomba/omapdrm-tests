@@ -1,4 +1,4 @@
-PROGS=db onoff modesetter testpat planescale
+PROGS=db onoff modesetter testpat planescale capture
 OMAP_PROGS=omap-producer omap-consumer
 
 PKG_CONFIG=pkg-config
