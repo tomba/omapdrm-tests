@@ -1,5 +1,4 @@
 
-#include <omap_drmif.h>
 #include <pthread.h>
 #include <sys/un.h>
 #include <sys/socket.h>
@@ -18,62 +17,10 @@ static const bool always_create_new_bufs = false;
 
 static struct {
 	int drm_fd;
-	struct omap_device *omap_dev;
 	volatile struct shared_data *sdata;
 	struct framebuffer bufs[MAX_OUTPUTS][BUF_QUEUE_SIZE];
 	int buf_num[MAX_OUTPUTS];
 } global;
-
-static void create_omap_fb(int width, int height, int bpp, struct framebuffer *buf)
-{
-	struct omap_bo *bo;
-	uint32_t flags;
-	void *map;
-
-	flags = 0
-	| OMAP_BO_WC
-	| OMAP_BO_SCANOUT
-	//| OMAP_BO_TILED
-	;
-
-	if (flags & OMAP_BO_TILED) {
-		flags &= ~OMAP_BO_TILED;
-		if (bpp == 8) {
-			flags |= OMAP_BO_TILED_8;
-		} else if (bpp == 16) {
-			flags |= OMAP_BO_TILED_16;
-		} else if (bpp == 32) {
-			flags |= OMAP_BO_TILED_32;
-		}
-	}
-
-	if (flags & OMAP_BO_TILED) {
-		bo = omap_bo_new_tiled(global.omap_dev, width, height, flags);
-	} else {
-		bo = omap_bo_new(global.omap_dev, width * height * bpp / 8, flags);
-	}
-
-	ASSERT(bo);
-
-	map = omap_bo_map(bo);
-	ASSERT(map);
-
-	memset(buf, 0, sizeof(*buf));
-	buf->width = width;
-	buf->height = height;
-	buf->format = DRM_FORMAT_XRGB8888;
-	buf->num_planes = 1;
-	buf->planes[0].stride = width * bpp / 8;
-	buf->planes[0].size = omap_bo_size(bo);
-	buf->planes[0].handle = omap_bo_handle(bo);
-	buf->planes[0].map = map;
-	buf->omap_bo = bo;
-}
-
-static void destroy_omap_fb(struct framebuffer *fb)
-{
-	omap_bo_del(fb->omap_bo);
-}
 
 static void init_drm()
 {
@@ -81,15 +28,11 @@ static void init_drm()
 
 	global.drm_fd = drm_open_dev_dumb(card);
 
-	global.omap_dev = omap_device_new(global.drm_fd);
-	ASSERT(global.omap_dev);
-
 	drmDropMaster(global.drm_fd);
 }
 
 static void uninit_drm()
 {
-	omap_device_del(global.omap_dev);
 	close(global.drm_fd);
 }
 
@@ -174,12 +117,12 @@ static void main_loop(int cfd)
 
 			const int width = output->width;
 			const int height = output->height;
-			const int bpp = 32;
 
 			if (always_create_new_bufs) {
 				fb = &global.bufs[i][0];
 
-				create_omap_fb(width, height, bpp, fb);
+				drm_create_dumb_fb2(global.drm_fd, width, height,
+					DRM_FORMAT_XRGB8888, fb);
 			} else {
 
 				fb = &global.bufs[i][global.buf_num[i]];
@@ -195,7 +138,7 @@ static void main_loop(int cfd)
 			send_fb(cfd, output->output_id, fb);
 
 			if (always_create_new_bufs)
-				destroy_omap_fb(fb);
+				drm_destroy_dumb_fb(fb);
 
 			//printf("sent fb %d, handle %x\n", count, fb.handle);
 
@@ -238,13 +181,14 @@ static void create_bufs()
 		for (int n = 0; n < BUF_QUEUE_SIZE; ++n) {
 			const int width = output->width;
 			const int height = output->height;
-			const int bpp = 32;
 
 			struct framebuffer *fb;
 
 			fb = &global.bufs[i][n];
 
-			create_omap_fb(width, height, bpp, fb);
+			drm_create_dumb_fb2(global.drm_fd, width, height,
+					DRM_FORMAT_XRGB8888, fb);
+
 			drm_draw_test_pattern(fb, 0);
 		}
 	}

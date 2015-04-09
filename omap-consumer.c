@@ -1,5 +1,4 @@
 
-#include <omap_drmif.h>
 #include <pthread.h>
 #include <sys/un.h>
 #include <sys/socket.h>
@@ -15,7 +14,6 @@ static const bool use_plane = false;
 static struct {
 	int drm_fd;
 	int sfd;
-	struct omap_device *omap_dev;
 	volatile struct shared_data *sdata;
 } global;
 
@@ -150,10 +148,8 @@ static void modeset_page_flip_event(int fd, unsigned int frame,
 
 		//printf("DELETE %d\n", fb->fb_id);
 
-		r = drmModeRmFB(global.drm_fd, fb->fb_id);
+		r = drmModeRmFB(fb->fd, fb->fb_id);
 		ASSERT(r == 0);
-
-		omap_bo_del(fb->omap_bo);
 
 		free(priv->current_fb);
 	}
@@ -237,14 +233,10 @@ static void init_drm()
 	const char *card = "/dev/dri/card0";
 
 	global.drm_fd = drm_open_dev_dumb(card);
-
-	global.omap_dev = omap_device_new(global.drm_fd);
-	ASSERT(global.omap_dev);
 }
 
 static void uninit_drm()
 {
-	omap_device_del(global.omap_dev);
 	close(global.drm_fd);
 }
 
@@ -270,21 +262,19 @@ static void receive_fb(int sfd, int *output_id, struct framebuffer *fb)
 	r = drmPrimeFDToHandle(global.drm_fd, prime_fd, &fb->planes[0].handle);
 	ASSERT(r == 0);
 
+	fb->fd = global.drm_fd;
 	fb->num_planes = 1;
 
-	fb->omap_bo = omap_bo_from_dmabuf(global.omap_dev, prime_fd);
-	ASSERT(fb->omap_bo);
-
-	fb->planes[0].size = omap_bo_size(fb->omap_bo);
 	fb->width = w;
 	fb->height = h;
 	fb->planes[0].stride = fb->width * 32 / 8;
+	fb->planes[0].size = fb->planes[0].stride * fb->height;
 
 	r = drmModeAddFB(global.drm_fd, fb->width, fb->height, 24, 32, fb->planes[0].stride,
 		   fb->planes[0].handle, &fb->fb_id);
 	ASSERT(r == 0);
 
-	//printf("received fb handle %x, prime %d, fb %d\n", fb->handle, prime_fd, fb->fb_id);
+	//printf("received fb handle %x, prime %d, fb %d\n", fb->planes[0].handle, prime_fd, fb->fb_id);
 
 	r = close(prime_fd);
 	ASSERT(r == 0);
