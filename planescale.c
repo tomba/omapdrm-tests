@@ -12,37 +12,17 @@ struct flip_data {
 
 static void find_planes(int fd, struct modeset_out *modeset_list)
 {
-	drmModePlaneRes *plane_resources;
-	int cur_plane;
-
-	plane_resources = drmModeGetPlaneResources(fd);
-	ASSERT(plane_resources);
-
-	cur_plane = 0;
-
 	for_each_output(out, modeset_list) {
 		struct flip_data *pdata = out->data;
 
-		for (; cur_plane < plane_resources->count_planes; cur_plane++) {
-			drmModePlane *ovr;
+		uint32_t plane_id = drm_reserve_plane(fd);
+		ASSERT(plane_id > 0);
 
-			ovr = drmModeGetPlane(fd, plane_resources->planes[cur_plane]);
-			ASSERT(ovr);
+		pdata->plane_id = plane_id;
 
-			printf("Output %d: using plane %d\n",
-				out->output_id, ovr->plane_id);
-
-			pdata->plane_id = ovr->plane_id;
-
-			cur_plane++;
-
-			drmModeFreePlane(ovr);
-
-			break;
-		}
+		printf("Output %d: using plane %d\n",
+			out->output_id, plane_id);
 	}
-
-	drmModeFreePlaneResources(plane_resources);
 }
 
 int main(int argc, char **argv)
