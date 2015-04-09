@@ -72,7 +72,7 @@ static void find_crtc(int fd)
 		return;
 	}
 
-	ASSERT(true);
+	ASSERT(false);
 }
 
 static void create_bufs(struct cam_vid_pipe *pipe, int width, int height)

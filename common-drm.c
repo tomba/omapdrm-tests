@@ -223,8 +223,7 @@ uint32_t drm_reserve_plane(int fd)
 		return plane_id;
 	}
 
-	ASSERT(true);
-	return 0;
+	ASSERT(false);
 }
 
 void drm_release_plane(uint32_t plane_id)
