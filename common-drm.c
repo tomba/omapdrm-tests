@@ -148,6 +148,7 @@ void drm_destroy_dumb_fb(struct framebuffer *buf)
 
 	memset(buf, 0, sizeof(*buf));
 }
+
 void drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 {
 	uint32_t prop = 0;
@@ -176,4 +177,61 @@ void drm_set_dpms(int fd, uint32_t conn_id, int dpms)
 	r = drmModeObjectSetProperty(fd, conn_id,
 		DRM_MODE_OBJECT_CONNECTOR, prop, dpms);
 	ASSERT(r == 0);
+}
+
+static uint32_t reserved_plane_ids[8];
+
+static int find_reserved_plane(uint32_t plane_id)
+{
+	for (int i = 0; i < ARRAY_SIZE(reserved_plane_ids); ++i) {
+		if (reserved_plane_ids[i] == plane_id)
+			return i;
+	}
+
+	return -1;
+}
+
+uint32_t drm_reserve_plane(int fd)
+{
+	drmModePlaneRes *res = drmModeGetPlaneResources(fd);
+	ASSERT(res);
+
+	for (int i = 0; i < res->count_planes; i++) {
+		uint32_t plane_id = res->planes[i];
+
+		int idx;
+
+		idx = find_reserved_plane(plane_id);
+
+		if (idx >= 0)
+			continue;
+
+		drmModePlane *plane = drmModeGetPlane(fd, plane_id);
+		ASSERT(plane);
+
+		// TODO: check for required plane attributes
+
+		drmModeFreePlane(plane);
+
+		idx = find_reserved_plane(0);
+		ASSERT(idx >= 0);
+
+		reserved_plane_ids[idx] = plane_id;
+
+		drmModeFreePlaneResources(res);
+
+		return plane_id;
+	}
+
+	ASSERT(true);
+	return 0;
+}
+
+void drm_release_plane(uint32_t plane_id)
+{
+	int idx = find_reserved_plane(plane_id);
+
+	ASSERT(idx >= 0);
+
+	reserved_plane_ids[idx] = 0;
 }

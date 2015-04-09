@@ -46,4 +46,7 @@ void drm_set_dpms(int fd, uint32_t conn_id, int dpms);
 #define for_each_output(pos, head) \
 	for (struct modeset_out *(pos) = (head); (pos); (pos) = (pos)->next)
 
+uint32_t drm_reserve_plane(int fd);
+void drm_release_plane(uint32_t plane_id);
+
 #endif
