@@ -2,8 +2,8 @@
 db
 onoff
 modesetter
-omap-producer
-omap-consumer
+producer
+consumer
 testpat
 planescale
 capture
