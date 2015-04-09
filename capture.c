@@ -222,10 +222,13 @@ static void process_pipe(struct cam_vid_pipe *pipe)
 		pipe->b3 = -1;
 	}
 
-	pipe->b1 = v4l2_dequeue_buffer(pipe);
-
-	if (pipe->b1 == -1)
+	int b = v4l2_dequeue_buffer(pipe);
+	if (b == -1)
 		return;
+
+	pipe->b3 = pipe->b2;
+	pipe->b2 = pipe->b1;
+	pipe->b1 = b;
 
 	struct framebuffer *buf = &pipe->bufs[pipe->b1];
 
@@ -240,9 +243,6 @@ static void process_pipe(struct cam_vid_pipe *pipe)
 		0 << 16, 0 << 16, buf->width << 16, buf->height << 16);
 
 	ASSERT(r == 0);
-
-	pipe->b3 = pipe->b2;
-	pipe->b2 = pipe->b1;
 }
 
 int main(int argc, char **argv)
@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 	};
 
 	while (true) {
-		int r = poll(fds, 3, -1);
+		int r = poll(fds, ARRAY_SIZE(fds), -1);
 		ASSERT(r > 0);
 
 		if (fds[0].revents != 0)
