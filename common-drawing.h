@@ -6,6 +6,11 @@ static inline uint32_t MAKE_RGB(uint8_t r, uint8_t g, uint8_t b)
 	return (r << 16) | (g << 8) | (b << 0);
 }
 
+static inline uint16_t MAKE_RGB565(uint8_t r, uint8_t g, uint8_t b)
+{
+	return (r << 11) | (g << 6) | (b << 0);
+}
+
 static inline uint32_t MAKE_YUV_601_Y(uint8_t r, uint8_t g, uint8_t b)
 {
 	return (((66 * r + 129 * g +  25 * b + 128) >> 8) + 16);

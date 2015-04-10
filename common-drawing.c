@@ -381,7 +381,7 @@ void drm_clear_fb(struct framebuffer *fb)
 		memset(fb->planes[i].map, 0, fb->planes[i].size);
 }
 
-void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int width)
+static void drm_draw_color_bar_rgb888(struct framebuffer *buf, int old_xpos, int xpos, int width)
 {
 	const unsigned int colors32[] = {
 		0xffffff,
@@ -400,7 +400,7 @@ void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int wid
 	};
 
 	for (unsigned y = 0; y < buf->height; ++y) {
-		unsigned int bcol = colors32[y * sizeof(colors32) / 4 / buf->height];
+		unsigned int bcol = colors32[y * ARRAY_SIZE(colors32) / buf->height];
 		uint32_t *line = (uint32_t*)(buf->planes[0].map + buf->planes[0].stride * y);
 
 		if (old_xpos >= 0) {
@@ -410,5 +410,85 @@ void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int wid
 
 		for (unsigned x = xpos; x < xpos + width; ++x)
 			line[x] = bcol;
+	}
+}
+
+static void drm_draw_color_bar_rgb565(struct framebuffer *buf, int old_xpos, int xpos, int width)
+{
+	const uint16_t colors[] = {
+		MAKE_RGB565(31, 63, 31),
+		MAKE_RGB565(31, 0, 0),
+		MAKE_RGB565(31, 63, 31),
+		MAKE_RGB565(0, 0, 31),
+		MAKE_RGB565(31, 63, 31),
+	};
+
+	for (unsigned y = 0; y < buf->height; ++y) {
+		unsigned int bcol = colors[y * ARRAY_SIZE(colors) / buf->height];
+		uint16_t *line = (uint16_t*)(buf->planes[0].map + buf->planes[0].stride * y);
+
+		if (old_xpos >= 0) {
+			for (unsigned x = old_xpos; x < old_xpos + width; ++x)
+				line[x] = 0;
+		}
+
+		for (unsigned x = xpos; x < xpos + width; ++x)
+			line[x] = bcol;
+	}
+}
+
+static void drm_draw_color_bar_semiplanar_yuv(struct framebuffer *buf, int old_xpos, int xpos, int width)
+{
+	const uint8_t colors[] = {
+		0xff,
+		0x00,
+		0xff,
+		0x20,
+		0xff,
+		0x40,
+		0xff,
+		0x80,
+		0xff,
+	};
+
+	for (unsigned y = 0; y < buf->height; ++y) {
+		unsigned int bcol = colors[y * ARRAY_SIZE(colors) / buf->height];
+		uint8_t *line = (uint8_t*)(buf->planes[0].map + buf->planes[0].stride * y);
+
+		if (old_xpos >= 0) {
+			for (unsigned x = old_xpos; x < old_xpos + width; ++x)
+				line[x] = 0;
+		}
+
+		for (unsigned x = xpos; x < xpos + width; ++x)
+			line[x] = bcol;
+	}
+}
+
+void drm_draw_color_bar(struct framebuffer *buf, int old_xpos, int xpos, int width)
+{
+	switch (buf->format) {
+		case DRM_FORMAT_NV12:
+		case DRM_FORMAT_NV21:
+			// XXX not right but gets something on the screen
+			drm_draw_color_bar_semiplanar_yuv(buf, old_xpos, xpos, width);
+			break;
+
+		case DRM_FORMAT_YUYV:
+		case DRM_FORMAT_UYVY:
+			// XXX not right but gets something on the screen
+			drm_draw_color_bar_rgb565(buf, old_xpos, xpos, width);
+			break;
+
+		case DRM_FORMAT_RGB565:
+			drm_draw_color_bar_rgb565(buf, old_xpos, xpos, width);
+			break;
+
+		case DRM_FORMAT_XRGB8888:
+			drm_draw_color_bar_rgb888(buf, old_xpos, xpos, width);
+			break;
+
+		default:
+			ASSERT(false);
 	}
 }
