@@ -249,19 +249,22 @@ int main(int argc, char **argv)
 {
 	init_drm();
 	find_crtc(global.drm_fd);
+	bool dual_camera = true;
 
 	init_camera_video_pipe(&global.pipes[0], "/dev/video0",
 		800, 600, 0, 0, global.crtc_width, global.crtc_height);
-	init_camera_video_pipe(&global.pipes[1], "/dev/video1",
-		800, 600, 25, 25, global.crtc_width / 3, global.crtc_height / 3);
+	if (dual_camera)
+		init_camera_video_pipe(&global.pipes[1], "/dev/video1",
+			800, 600, 25, 25, global.crtc_width / 3, global.crtc_height / 3);
 
 	process_pipe_init(&global.pipes[0]);
-	process_pipe_init(&global.pipes[1]);
+	if (dual_camera)
+		process_pipe_init(&global.pipes[1]);
 
 	struct pollfd fds[] = {
 		{ .fd = 0, .events =  POLLIN },
 		{ .fd = global.pipes[0].cap_fd, .events =  POLLIN },
-		{ .fd = global.pipes[1].cap_fd, .events =  POLLIN },
+		{ .fd = dual_camera ? global.pipes[1].cap_fd : 0, .events =  POLLIN },
 	};
 
 	while (true) {
@@ -272,11 +275,13 @@ int main(int argc, char **argv)
 			break;
 
 		process_pipe(&global.pipes[0]);
-		process_pipe(&global.pipes[1]);
+		if (dual_camera)
+			process_pipe(&global.pipes[1]);
 	}
 
 	free_camera_video_pipe(&global.pipes[1]);
-	free_camera_video_pipe(&global.pipes[0]);
+	if (dual_camera)
+		free_camera_video_pipe(&global.pipes[0]);
 
 	uninit_drm();
 
