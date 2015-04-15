@@ -140,7 +140,9 @@ static void create_omap_fb(int fd, struct omap_device *omap_dev,
 		plane->stride = (flags & OMAP_BO_TILED) ?
 				ALIGN2(width * bpp / 8, PAGE_SHIFT) :
 				width * bpp / 8;
-		plane->size = omap_bo_size(bo);
+		// XXX omap_bo_size() doesn't return correct value for NV12?
+		plane->size = plane->stride * height;	//omap_bo_size(bo);
+		plane->omap_bo = bo;
 
 		/*
 		printf("buf %d: %dx%d, bitspp %d, stride %d, size %d\n",
@@ -174,7 +176,7 @@ static void destroy_omap_fb(struct framebuffer *fb)
 		munmap(plane->map, plane->size);
 
 		/* delete buffer */
-		omap_bo_del(fb->omap_bo);
+		omap_bo_del(plane->omap_bo);
 	}
 
 	memset(fb, 0, sizeof(*fb));

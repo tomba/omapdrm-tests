@@ -20,6 +20,7 @@ struct framebuffer_plane {
 	uint32_t size;
 	uint32_t stride;
 	uint8_t *map;
+	struct omap_bo *omap_bo;
 };
 
 struct framebuffer {
@@ -33,7 +34,6 @@ struct framebuffer {
 	struct framebuffer_plane planes[4];
 
 	uint32_t fb_id;
-	struct omap_bo *omap_bo;
 };
 
 int drm_open_dev_dumb(const char *node);
