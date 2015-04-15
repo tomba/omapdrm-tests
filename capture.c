@@ -1,5 +1,4 @@
 
-#include <drm/drm_fourcc.h>
 #include <linux/videodev2.h>
 #include <poll.h>
 #include <sys/ioctl.h>

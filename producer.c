@@ -2,7 +2,6 @@
 #include <pthread.h>
 #include <sys/un.h>
 #include <sys/socket.h>
-#include <drm/drm_fourcc.h>
 
 #include "test.h"
 #include "omap-prod-con.h"

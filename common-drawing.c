@@ -2,8 +2,6 @@
 #include "common.h"
 #include "common-drawing.h"
 
-#include <drm/drm_fourcc.h>
-
 void draw_pixel(struct framebuffer *buf, int x, int y, uint32_t color)
 {
 	uint32_t *p;

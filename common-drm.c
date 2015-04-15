@@ -1,8 +1,6 @@
 #include "common-drm.h"
 #include "common.h"
 
-#include <drm/drm_fourcc.h>
-
 int drm_open_dev_dumb(const char *node)
 {
 	int fd = open(node, O_RDWR | O_CLOEXEC);

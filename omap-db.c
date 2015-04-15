@@ -1,5 +1,4 @@
 #include <omap_drmif.h>
-#include <drm/drm_fourcc.h>
 
 #include "test.h"
 

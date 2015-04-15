@@ -1,6 +1,5 @@
 
 #include "test.h"
-#include <drm/drm_fourcc.h>
 
 static struct modeset_out *modeset_list = NULL;
 
