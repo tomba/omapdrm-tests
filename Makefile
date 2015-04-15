@@ -12,7 +12,7 @@ else
 	LDLIBS += $(shell $(PKG_CONFIG) --libs libdrm)
 endif
 
-CFLAGS += -O2 -Wall -std=c99 -D_GNU_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE
+CFLAGS += -O2 -Wall -std=c99 -D_GNU_SOURCE -D_DEFAULT_SOURCE -D_XOPEN_SOURCE
 
 LDLIBS += -lrt -pthread
 #LDFLAGS += -static
